@@ -100,6 +100,8 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
     @Override
     public void queue(RequestOperation operation) {
 
+        SpdyStream stream = new SpdyStream(operation);
+        stream.open(nextStreamId, initialSendWindow, configuration.getStreamReceiveWindow())
     }
 
     /* SpdyFrameDecoderDelegate */
@@ -497,7 +499,6 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
 
     }
 
-
     private void sendPing() {
 
         Socket.WriteFuture pingFuture = socket.write(frameEncoder.encodePingFrame(nextPingId));
@@ -510,7 +511,6 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
 
             @Override
             public void onError(Throwable throwable) {
-
             }
 
             @Override

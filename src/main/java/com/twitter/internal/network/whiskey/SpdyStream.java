@@ -6,8 +6,7 @@ import java.nio.ByteBuffer;
 final class SpdyStream {
     public static int STREAM_ID_UNSET = 0;
 
-    private RequestOperation requestOperation;
-    private ResponseFuture responseFuture;
+    private RequestOperation operation;
     private int streamId;
     private int priority;
     private int sendWindow;
@@ -19,10 +18,21 @@ final class SpdyStream {
     private boolean closedRemotely;
     private boolean receivedReply;
 
+    SpdyStream() {
+
+    }
+
     SpdyStream(boolean local) {
         this.local = local;
         closedLocally = !local;
         closedRemotely = false;
+    }
+
+    SpdyStream(RequestOperation operation) {
+        this.local = true;
+        closedLocally = true;
+        closedRemotely = false;
+        this.operation = operation;
     }
 
     void open(int streamId, int sendWindow, int receiveWindow) {

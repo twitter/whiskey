@@ -1,6 +1,7 @@
 package com.twitter.internal.network.whiskey;
 
 
+import java.net.ConnectException;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashMap;
@@ -11,6 +12,7 @@ class SessionManager {
 
     private final Origin origin;
     private final ClientConfiguration configuration;
+    // TODO: implement HashDeque
     private final Deque<RequestOperation> pendingOperations = new ArrayDeque<>();
     private final Map<Integer, Deque<Socket>> pendingSocketMap;
     private final Map<Integer, Deque<Session>> openSessionMap;
@@ -34,11 +36,12 @@ class SessionManager {
         inverseSessionMap = new HashMap<>(4);
     }
 
-    void queue(RequestOperation operation) {
+    void queue(final RequestOperation operation) {
 
         final int currentConnectivity = connectivity;
         if (currentConnectivity == OFFLINE) {
-            // TODO: throw exception immediately
+            // TODO: determine exception/message
+            operation.fail(new ConnectException("unable to connect to host"));
             return;
         }
 
@@ -66,6 +69,24 @@ class SessionManager {
         }
 
         // If no active sessions are available, queue the operation locally.
+        // Listen for cancellation/timeout.
+        operation.addListener(new Listener<Response>() {
+            @Override
+            public void onComplete(Response result) {
+            }
+
+            @Override
+            public void onError(Throwable throwable) {
+                if (pendingOperations.contains(operation)) {
+                    pendingOperations.remove(operation);
+                }
+            }
+
+            @Override
+            public Executor getExecutor() {
+                return InlineExecutor.instance();
+            }
+        });
         pendingOperations.add(operation);
 
         // If parallelism allows, open new socket connection(s).

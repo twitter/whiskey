@@ -118,6 +118,10 @@ public class RequestBuilder {
         return this;
     }
 
+//    public RequestBuilder body(ByteChannelProvider provider, boolean mayBlock) {
+//
+//    }
+
     public RequestBuilder priority(double priority) {
         this.priority = priority;
         return this;

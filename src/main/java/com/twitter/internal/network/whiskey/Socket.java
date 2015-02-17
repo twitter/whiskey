@@ -4,8 +4,10 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
-import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.concurrent.TimeUnit;
@@ -13,14 +15,15 @@ import java.util.concurrent.TimeUnit;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 
+// TODO: remove readqueue -> currentRead only?
+// TODO: restructure writequeue as deque (non-cancelable?)
+// TODO: create runloopsocket interface
 class Socket {
     private static final int SOCKET_BUFFER_SIZE = 65536;
 
-    private boolean connected = false;
+    private boolean disconnected = false;
     private boolean closed = false;
 
-    private Selector selector;
-    private SelectionKey selectionKey;
     private SocketChannel channel;
     private SSLContext context;
     private SSLEngine engine;
@@ -29,14 +32,14 @@ class Socket {
     private ConnectFuture connectFuture;
     private ReadFuture currentRead;
     private WriteFuture currentWrite;
-    private LinkedHashSet<ReadFuture> readQueue;
-    private LinkedHashSet<WriteFuture> writeQueue;
-    private RunLoop executor;
+    private Deque<ReadFuture> readQueue = new ArrayDeque<>(1);
+    private Deque<WriteFuture> writeQueue = new ArrayDeque<>(32);
+    private RunLoop runLoop;
     private Origin origin;
 
-    Socket(Origin origin, RunLoop executor) {
+    Socket(Origin origin, RunLoop runLoop) {
         this.origin = origin;
-        this.executor = executor;
+        this.runLoop = runLoop;
         socketBuffer = ByteBuffer.allocate(SOCKET_BUFFER_SIZE);
     }
 
@@ -46,7 +49,7 @@ class Socket {
         try {
             channel = SocketChannel.open();
             channel.configureBlocking(false);
-            executor.register(this);
+            runLoop.register(this);
             channel.connect(new InetSocketAddress(origin.getHost(), origin.getPort()));
         } catch (IOException e) {
             connectFuture.fail(e);
@@ -63,16 +66,21 @@ class Socket {
         return channel.isConnected();
     }
 
-    void onConnect() throws IOException {
+    void onConnect() {
 
-        channel.finishConnect();
+        try {
+            channel.finishConnect();
+        } catch (IOException e) {
+            connectFuture.fail(e);
+            closed = true;
+        }
         finishConnect();
     }
 
-    void finishConnect() throws IOException {
+    void finishConnect() {
 
         connectFuture.set(origin);
-        executor.register(this);
+        runLoop.register(this);
     }
 
     void onReadable() {
@@ -82,7 +90,7 @@ class Socket {
         }
 
         if (currentRead == null) {
-            executor.register(this);
+            runLoop.register(this);
             return;
         }
 
@@ -102,10 +110,10 @@ class Socket {
             socketBuffer.flip();
             currentRead.set(socketBuffer);
             socketBuffer.compact();
-            finishRead();
+            currentRead = readQueue.poll();
         }
 
-        executor.register(this);
+        runLoop.register(this);
     }
 
     void onWriteable() {
@@ -115,7 +123,7 @@ class Socket {
         }
 
         if (currentWrite == null) {
-            executor.register(this);
+            runLoop.register(this);
             return;
         }
 
@@ -125,21 +133,19 @@ class Socket {
         long bytesWritten = 0;
         try {
              bytesWritten = channel.write(writeData);
-             currentWrite.provide(bytesWritten);
         } catch (IOException e) {
             close(e);
             return;
         }
 
-        // Write complete
         ByteBuffer finalData = writeData[writeData.length - 1];
-
-        if (finalData.position() == finalData.limit()) {
-            currentWrite.complete();
-            finishWrite();
+        boolean writeComplete = finalData.position() == finalData.limit();
+        currentWrite.provide(bytesWritten, writeComplete);
+        if (writeComplete) {
+            currentWrite = writeQueue.poll();
         }
 
-        executor.register(this);
+        runLoop.register(this);
     }
 
     int interestSet() {
@@ -147,8 +153,8 @@ class Socket {
         if (channel.isConnectionPending()) return SelectionKey.OP_CONNECT;
 
         int interestSet = 0;
-        if (!readQueue.isEmpty()) interestSet = SelectionKey.OP_READ;
-        if (!writeQueue.isEmpty()) interestSet |= SelectionKey.OP_WRITE;
+        if (currentRead != null) interestSet = SelectionKey.OP_READ;
+        if (currentWrite != null) interestSet |= SelectionKey.OP_WRITE;
         return interestSet;
     }
 
@@ -222,26 +228,6 @@ class Socket {
         return write(data);
     }
 
-    void finishRead() {
-
-        currentRead = null;
-        if (!readQueue.isEmpty()) {
-            Iterator<ReadFuture> i = readQueue.iterator();
-            currentRead = i.next();
-            i.remove();
-        }
-    }
-
-    void finishWrite() {
-
-        currentWrite = null;
-        if (!writeQueue.isEmpty()) {
-            Iterator<WriteFuture> i = writeQueue.iterator();
-            currentWrite = i.next();
-            i.remove();
-        }
-    }
-
     public Request.Protocol getProtocol() {
         return Request.Protocol.SPDY_3_1;
     }
@@ -259,24 +245,33 @@ class Socket {
 
     class WriteFuture extends ReactiveFuture<Long, Long> {
         ByteBuffer[] data;
-        Long bytesWritten;
+        ArrayList<Long> bytesWritten;
+        Long totalBytesWritten;
 
-        public WriteFuture(ByteBuffer[] data) {
+        WriteFuture(ByteBuffer[] data) {
             this.data = data;
-            bytesWritten = (long)0;
+            bytesWritten = new ArrayList<>();
+            totalBytesWritten = (long)0;
         }
 
-        public ByteBuffer[] pending() {
+        ByteBuffer[] pending() {
             return data;
         }
 
         @Override
-        public void accumulate(Long element) {
-            this.bytesWritten += element;
+        void accumulate(Long element) {
+            bytesWritten.add(element);
+            totalBytesWritten += element;
         }
 
-        public boolean complete() {
-            return set(bytesWritten);
+        @Override
+        Iterable<Long> drain() {
+            return bytesWritten;
+        }
+
+        @Override
+        void complete() {
+            set(totalBytesWritten);
         }
 
         @Override

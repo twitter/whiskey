@@ -25,7 +25,7 @@ public class WhiskeyClient {
         Origin requestOrigin = new Origin(request.getUrl());
         Origin aliasedOrigin = aliases.get(requestOrigin);
         final Origin origin = aliasedOrigin != null ? aliasedOrigin : requestOrigin;
-        final RequestOperation operation = new RequestOperation(request, this);
+        final RequestOperation operation = new RequestOperation(this, request);
 
         RunLoop.instance().execute(new Runnable() {
             @Override
@@ -41,7 +41,7 @@ public class WhiskeyClient {
             }
         });
 
-        return operation.getFuture();
+        return operation;
     }
 
     public void addAlias(Origin alias, Origin origin) {
@@ -58,7 +58,7 @@ public class WhiskeyClient {
     /**
      * Immediately terminate all connections and fail in-flight requests.
      */
-    public void abort() {
+    public void kill() {
 
     }
 }

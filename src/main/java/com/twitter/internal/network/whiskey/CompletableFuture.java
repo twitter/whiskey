@@ -9,16 +9,18 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 class CompletableFuture<T> implements ListenableFuture<T> {
+
     private ArrayList<Listener<T>> listeners = new ArrayList<>();
     private volatile T result = null;
     private volatile Throwable error = null;
     private volatile boolean cancelled = false;
-    private volatile boolean done = false;
+    volatile boolean done = false;
 
     CompletableFuture() {
     }
 
     boolean set(final T result) throws RuntimeException {
+
         if (done) {
             if (cancelled) {
                 return false;
@@ -54,6 +56,7 @@ class CompletableFuture<T> implements ListenableFuture<T> {
     }
 
     boolean fail(final Throwable throwable) {
+
         if (done) {
             if (cancelled) {
                 return false;
@@ -90,6 +93,7 @@ class CompletableFuture<T> implements ListenableFuture<T> {
 
     @Override
     public boolean cancel(boolean mayInterruptIfRunning) {
+
         if (done) {
             return false;
         }
