@@ -101,7 +101,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
     public void queue(RequestOperation operation) {
 
         SpdyStream stream = new SpdyStream(operation);
-        stream.open(nextStreamId, initialSendWindow, configuration.getStreamReceiveWindow())
+        stream.open(nextStreamId, initialSendWindow, configuration.getStreamReceiveWindow());
     }
 
     /* SpdyFrameDecoderDelegate */
