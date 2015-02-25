@@ -27,9 +27,9 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
     private int lastGoodStreamId = 0;
     private int nextStreamId = 1;
     private int nextPingId = 1;
-    private int initialSendWindow = 65536;
+    private int initialSendWindow = DEFAULT_INITIAL_WINDOW_SIZE;
     private int initialReceiveWindow;
-    private int sessionSendWindow = 65536;
+    private int sessionSendWindow = DEFAULT_INITIAL_WINDOW_SIZE;
     private int sessionReceiveWindow;
     private int localMaxConcurrentStreams = 0;
     private int remoteMaxConcurrentStreams = 100;
@@ -54,6 +54,9 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
 
         sendClientSettings();
         sendPing();
+
+        int windowDelta = sessionReceiveWindow - DEFAULT_INITIAL_WINDOW_SIZE;
+        sendWindowUpdate(SPDY_SESSION_STREAM_ID, windowDelta);
         manager.poll(this, getCapacity());
     }
 
@@ -190,7 +193,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
             sendWindowUpdate(streamId, deltaWindowSize);
         }
 
-        stream.writeData(data);
+        stream.receivedData(data, last);
 
         if (last) {
             stream.closeRemotely();
@@ -492,11 +495,8 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
     }
 
     private void sendClientSettings() {
-
-    }
-
-    private void sendServerSettings() {
-
+        SpdySettingsFrame settingsFrame = new SpdySettingsFrame();
+        settingsFrame.setValue(SpdyCodecUtil.SETTINGS_INITIAL_WINDOW_SIZE, initialReceiveWindow);
     }
 
     private void sendPing() {

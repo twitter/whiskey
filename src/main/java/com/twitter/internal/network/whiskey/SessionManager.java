@@ -87,6 +87,7 @@ class SessionManager {
                 return InlineExecutor.instance();
             }
         });
+
         pendingOperations.add(operation);
 
         // If parallelism allows, open new socket connection(s).
@@ -141,6 +142,7 @@ class SessionManager {
 
     private void createSession(final Socket socket) {
 
+        final int currentConnectivity = connectivity;
         Session session;
         switch(socket.getProtocol()) {
             case SPDY_3_1:
@@ -149,6 +151,14 @@ class SessionManager {
             default:
                 throw new RuntimeException("unsupported protocol");
         }
+
+        // Locate the session pool associated with device's current preferred network interface
+        Deque<Session> openSessions = openSessionMap.get(currentConnectivity);
+        if (openSessions == null) {
+            openSessions = new ArrayDeque<>();
+            openSessionMap.put(currentConnectivity, openSessions);
+        }
+        openSessions.add(session);
 
         // TODO: implement load balancing delay
         while (session.getCapacity() > 0 && !pendingOperations.isEmpty()) {

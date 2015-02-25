@@ -85,6 +85,10 @@ public class Request {
         return cookieHandler;
     }
 
+    public int getMaxRedirects() {
+        return maxRedirects;
+    }
+
     /**
      * HTTP Request Method as specified in RFC 2616
      * http://www.w3.org/Protocols/rfc2616/rfc2616-sec9.html

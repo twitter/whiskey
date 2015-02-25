@@ -22,10 +22,16 @@ public class WhiskeyClient {
 
     public ResponseFuture submit(Request request) {
 
-        Origin requestOrigin = new Origin(request.getUrl());
+        final RequestOperation operation = new RequestOperation(this, request);
+        queue(operation);
+        return operation;
+    }
+
+    void queue(final RequestOperation operation) {
+
+        Origin requestOrigin = new Origin(operation.getCurrentRequest().getUrl());
         Origin aliasedOrigin = aliases.get(requestOrigin);
         final Origin origin = aliasedOrigin != null ? aliasedOrigin : requestOrigin;
-        final RequestOperation operation = new RequestOperation(this, request);
 
         RunLoop.instance().execute(new Runnable() {
             @Override
@@ -40,8 +46,6 @@ public class WhiskeyClient {
                 manager.queue(operation);
             }
         });
-
-        return operation;
     }
 
     public void addAlias(Origin alias, Origin origin) {

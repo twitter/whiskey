@@ -7,6 +7,10 @@ public class HeadersFutureImpl extends ReactiveFuture<Headers, Headers.Header> i
 
     private Headers headers;
 
+    void reset() {
+        headers = new Headers();
+    }
+
     @Override
     void accumulate(Headers.Header element) {
 

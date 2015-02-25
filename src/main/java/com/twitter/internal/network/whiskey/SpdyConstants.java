@@ -2,6 +2,7 @@ package com.twitter.internal.network.whiskey;
 
 public class SpdyConstants {
     static final int SPDY_SESSION_STREAM_ID = 0;
+    static final int DEFAULT_INITIAL_WINDOW_SIZE = 65536;
 
     static final int SPDY_SESSION_OK = 0;
     static final int SPDY_SESSION_PROTOCOL_ERROR = 1;

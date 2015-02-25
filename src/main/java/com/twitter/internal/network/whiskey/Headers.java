@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +28,12 @@ public class Headers implements Map<String, String[]> {
     public static String CONTENT_TYPE = "content-type";
     public static String COOKIE = "cookie";
     public static String SET_COOKIE = "set-cookie";
+
+    public static String CONNECTION = "connection";
+    public static String KEEP_ALIVE = "keep-alive";
+    public static String PROXY_CONNECTION = "proxy-connection";
+    public static String TRANSFER_ENCODING = "transfer-encoding";
+
     public static String[] RESERVED_HEADERS = { ":host", ":path", ":method", ":scheme" };
 
     private Map<String, List<String>> headers = new HashMap<>();

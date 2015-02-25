@@ -129,6 +129,7 @@ class ClientConfiguration {
             this.protocols = protocols;
             return this;
         }
+
         public Builder sessionReceiveWindow(int sessionReceiveWindow) {
             this.sessionReceiveWindow = sessionReceiveWindow;
             return this;

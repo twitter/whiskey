@@ -16,17 +16,34 @@ class RequestOperation extends CompletableFuture<Response> implements ResponseFu
     private final long startMs;
 
     private Request currentRequest;
+    private int remainingRedirects;
+    private int remainingRetries;
 
     RequestOperation(WhiskeyClient client, Request request) {
 
         startMs = SystemClock.elapsedRealtime();
+
         this.client = client;
         originalRequest = request;
         currentRequest = request;
+        remainingRedirects = request.getMaxRedirects();
+        remainingRetries = 1;
         stats = new RequestStats();
+
         headersFuture = new HeadersFutureImpl();
         bodyFuture = new BodyFutureImpl();
         statsFuture = new StatsFutureImpl();
+    }
+
+    void redirect(Request request) {
+
+        currentRequest = request;
+        remainingRedirects--;
+        assert remainingRedirects > 0;
+        assert !headersFuture.isDone();
+        assert !bodyFuture.isDone();
+        assert !statsFuture.isDone();
+        client.queue(this);
     }
 
     @Override
@@ -56,6 +73,10 @@ class RequestOperation extends CompletableFuture<Response> implements ResponseFu
         stats.durationMs = SystemClock.elapsedRealtime() - startMs;
     }
 
+    public int getRemainingRedirects() {
+        return remainingRedirects;
+    }
+
     @Override
     public Request getOriginalRequest() {
         return originalRequest;
@@ -67,17 +88,17 @@ class RequestOperation extends CompletableFuture<Response> implements ResponseFu
     }
 
     @Override
-    public HeadersFuture getHeadersFuture() {
+    public HeadersFutureImpl getHeadersFuture() {
         return headersFuture;
     }
 
     @Override
-    public BodyFuture getBodyFuture() {
+    public BodyFutureImpl getBodyFuture() {
         return bodyFuture;
     }
 
     @Override
-    public StatsFuture getStatsFuture() {
+    public StatsFutureImpl getStatsFuture() {
         return statsFuture;
     }
 }

@@ -16,7 +16,6 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 
 // TODO: remove readqueue -> currentRead only?
-// TODO: restructure writequeue as deque (non-cancelable?)
 // TODO: create runloopsocket interface
 class Socket {
     private static final int SOCKET_BUFFER_SIZE = 65536;

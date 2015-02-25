@@ -89,14 +89,9 @@ public class RequestBuilder {
         return this;
     }
 
-    public RequestBuilder body(ByteBuffer body) {
-        bodyData = new ByteBuffer[1];
-        bodyData[0] = body;
-        return this;
-    }
-
-    public RequestBuilder body(ByteBuffer[] body) {
+    public RequestBuilder body(ByteBuffer ... body) {
         bodyData = body;
+        bodyChannel = null;
         return this;
     }
 
