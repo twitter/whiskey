@@ -1,7 +1,5 @@
 package com.twitter.internal.network.whiskey;
 
-import android.util.SparseArray;
-
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
@@ -11,7 +9,7 @@ import static com.twitter.internal.network.whiskey.SpdyConstants.*;
 
 class SpdySession implements Session, SpdyFrameDecoderDelegate {
 
-    private static final Map<Origin, SparseArray<Integer>> storedSettings = new HashMap<>();
+    private static final Map<Origin, Map<Integer, Integer>> storedSettings = new HashMap<>();
 
     private final Origin origin;
     private final ClientConfiguration configuration;
@@ -23,7 +21,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
     private final Socket socket;
 
     private ByteBuffer inputBuffer;
-    private SparseArray<Long> sentPingMap = new SparseArray<>(3);
+    private Map<Long, Long> sentPingMap = new HashMap<>(3);
     private int lastGoodStreamId = 0;
     private int nextStreamId = 1;
     private int nextPingId = 1;
@@ -345,9 +343,9 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
         }
 
         if (persistValue) {
-            SparseArray<Integer> settings = storedSettings.get(origin);
+            Map<Integer, Integer> settings = storedSettings.get(origin);
             if (settings == null) {
-                settings = new SparseArray<>();
+                settings = new HashMap<>();
                 storedSettings.put(origin, settings);
             }
             settings.put(id, value);
