@@ -48,8 +48,8 @@ class Socket {
         try {
             channel = SocketChannel.open();
             channel.configureBlocking(false);
-            runLoop.register(this);
             channel.connect(new InetSocketAddress(origin.getHost(), origin.getPort()));
+            runLoop.register(this);
         } catch (IOException e) {
             connectFuture.fail(e);
             closed = true;

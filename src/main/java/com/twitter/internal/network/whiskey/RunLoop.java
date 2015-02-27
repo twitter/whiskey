@@ -109,6 +109,75 @@ class RunLoop implements Executor {
         }
     }
 
+    public void loop() {
+
+        loops++;
+
+        // Check standard tasks
+        Runnable currentTask;
+        while ((currentTask = tasks.poll()) != null) {
+            executions++;
+            currentTask.run();
+        }
+
+        long selectTimeout = 0;
+
+        // Check scheduled tasks and setup maximum delay
+        ScheduledRunnable nextScheduledTask;
+        while (!scheduledTasks.isEmpty()) {
+            nextScheduledTask = scheduledTasks.peek();
+            long now = PlatformAdapter.get().timestamp();
+            if (nextScheduledTask.triggerPoint <= now - nextScheduledTask.tolerance) {
+                // Discard the task - we missed the tolerance window
+                scheduledTasks.poll();
+            } else if (nextScheduledTask.triggerPoint <= now) {
+                // It's time to run the task
+                executions++;
+                nextScheduledTask.run();
+                scheduledTasks.poll();
+            } else {
+                // Determine the select timeout and break
+                selectTimeout = nextScheduledTask.triggerPoint - now;
+                break;
+            }
+        }
+
+        int readyChannels = 0;
+
+        // Select
+        try {
+            selecting = true;
+            readyChannels = selector.select(selectTimeout);
+            selecting = false;
+        } catch (IOException e) {
+            // TODO: handle closed channels
+            System.err.println("select exception: " + e);
+        }
+
+        if (readyChannels > 0) {
+            Set<SelectionKey> selected = selector.selectedKeys();
+            for (Iterator<SelectionKey> iterator = selected.iterator(); iterator.hasNext(); ) {
+                SelectionKey key = iterator.next();
+                iterator.remove();
+
+                Object attachment = key.attachment();
+                if (attachment instanceof Socket) {
+                    Socket socket = (Socket) attachment;
+                    if (key.isConnectable()) {
+                        executions++;
+                        socket.onConnect();
+                    } else if (key.isReadable()) {
+                        executions++;
+                        socket.onReadable();
+                    } else if (key.isWritable()) {
+                        executions++;
+                        socket.onWriteable();
+                    }
+                }
+            }
+        }
+    }
+
     // TODO: figure out liveness
     // TODO: allow cancelation of scheduled tasks?
     private class RunLoopThread extends Thread {
@@ -116,71 +185,7 @@ class RunLoop implements Executor {
         @Override
         public void run() {
             while (!paused) {
-                loops++;
-
-                // Check standard tasks
-                Runnable currentTask;
-                while ((currentTask = tasks.poll()) != null) {
-                    executions++;
-                    currentTask.run();
-                }
-
-                long selectTimeout = 0;
-
-                // Check scheduled tasks and setup maximum delay
-                ScheduledRunnable nextScheduledTask;
-                while (!scheduledTasks.isEmpty()) {
-                    nextScheduledTask = scheduledTasks.peek();
-                    long now = PlatformAdapter.get().timestamp();
-                    if (nextScheduledTask.triggerPoint <= now - nextScheduledTask.tolerance) {
-                        // Discard the task - we missed the tolerance window
-                        scheduledTasks.poll();
-                    } else if (nextScheduledTask.triggerPoint <= now) {
-                        // It's time to run the task
-                        executions++;
-                        nextScheduledTask.run();
-                        scheduledTasks.poll();
-                    } else {
-                        // Determine the select timeout and break
-                        selectTimeout = nextScheduledTask.triggerPoint - now;
-                        break;
-                    }
-                }
-
-                int readyChannels = 0;
-
-                // Select
-                try {
-                    selecting = true;
-                    readyChannels = selector.select(selectTimeout);
-                    selecting = false;
-                } catch (IOException e) {
-                    // TODO: handle closed channels
-                    System.err.println("select exception: " + e);
-                }
-
-                if (readyChannels > 0) {
-                    Set<SelectionKey> selected = selector.selectedKeys();
-                    for (Iterator<SelectionKey> iterator = selected.iterator(); iterator.hasNext(); ) {
-                        SelectionKey key = iterator.next();
-                        iterator.remove();
-
-                        Object attachment = key.attachment();
-                        if (attachment instanceof Socket) {
-                            Socket socket = (Socket) attachment;
-                            if (key.isConnectable()) {
-                                executions++;
-                                socket.onConnect();
-                            } else if (key.isReadable()) {
-                                executions++;
-                                socket.onReadable();
-                            } else if (key.isWritable()) {
-                                executions++;
-                                socket.onWriteable();
-                            }
-                        }
-                    }
-                }
+                loop();
             }
         }
     }
