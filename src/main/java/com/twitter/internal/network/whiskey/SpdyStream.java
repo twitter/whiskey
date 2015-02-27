@@ -220,6 +220,6 @@ final class SpdyStream {
 
     private void finalizeResponse() {
         finalResponse = true;
-        operation.getHeadersFuture().release();
+        //operation.getHeadersFuture().release();
     }
 }
