@@ -1,6 +1,5 @@
 package com.twitter.internal.network.whiskey;
 
-import android.os.SystemClock;
 import android.support.annotation.NonNull;
 
 import java.io.IOException;
@@ -79,7 +78,7 @@ class RunLoop implements Executor {
             throw new IllegalArgumentException();
         }
 
-        long triggerPoint = SystemClock.elapsedRealtime() + unit.toMillis(delay);
+        long triggerPoint = PlatformAdapter.get().timestamp() + unit.toMillis(delay);
         scheduledTasks.add(new ScheduledRunnable(command, triggerPoint, unit.toMillis(tolerance)));
         // TODO: investigate and fix race if necessary - documentation seems to indicate it won't be
         if (selecting) {
@@ -132,7 +131,7 @@ class RunLoop implements Executor {
                 ScheduledRunnable nextScheduledTask;
                 while (!scheduledTasks.isEmpty()) {
                     nextScheduledTask = scheduledTasks.peek();
-                    long now = SystemClock.elapsedRealtime();
+                    long now = PlatformAdapter.get().timestamp();
                     if (nextScheduledTask.triggerPoint <= now - nextScheduledTask.tolerance) {
                         // Discard the task - we missed the tolerance window
                         scheduledTasks.poll();

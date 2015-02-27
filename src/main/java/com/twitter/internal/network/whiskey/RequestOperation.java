@@ -1,7 +1,5 @@
 package com.twitter.internal.network.whiskey;
 
-import android.os.SystemClock;
-
 /**
  * @author Michael Schore
  */
@@ -21,7 +19,7 @@ class RequestOperation extends CompletableFuture<Response> implements ResponseFu
 
     RequestOperation(WhiskeyClient client, Request request) {
 
-        startMs = SystemClock.elapsedRealtime();
+        startMs = PlatformAdapter.get().timestamp();
 
         this.client = client;
         originalRequest = request;
@@ -70,7 +68,7 @@ class RequestOperation extends CompletableFuture<Response> implements ResponseFu
     }
 
     void finalizeStats() {
-        stats.durationMs = SystemClock.elapsedRealtime() - startMs;
+        stats.durationMs = PlatformAdapter.get().timestamp() - startMs;
     }
 
     public int getRemainingRedirects() {
