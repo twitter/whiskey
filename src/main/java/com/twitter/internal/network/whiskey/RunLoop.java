@@ -50,6 +50,10 @@ class RunLoop implements Executor {
         return instance;
     }
 
+    public void startThread() {
+        thread.start();
+    }
+
     /**
      * Executes the runnable on the internal RunLoopThread, waking the selector if necessary.
      */
@@ -111,10 +115,6 @@ class RunLoop implements Executor {
 
         @Override
         public void run() {
-
-            int readyChannels = 0;
-            long selectTimeout;
-
             while (!paused) {
                 loops++;
 
@@ -125,7 +125,7 @@ class RunLoop implements Executor {
                     currentTask.run();
                 }
 
-                selectTimeout = 0;
+                long selectTimeout = 0;
 
                 // Check scheduled tasks and setup maximum delay
                 ScheduledRunnable nextScheduledTask;
@@ -146,6 +146,8 @@ class RunLoop implements Executor {
                         break;
                     }
                 }
+
+                int readyChannels = 0;
 
                 // Select
                 try {
