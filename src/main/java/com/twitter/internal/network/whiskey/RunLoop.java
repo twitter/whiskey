@@ -54,6 +54,16 @@ class RunLoop implements Executor {
         thread.start();
     }
 
+    public void stopThread() throws InterruptedException {
+        paused = true;
+
+        if (selecting) {
+          selector.wakeup();
+        }
+
+        thread.join();
+    }
+
     /**
      * Executes the runnable on the internal RunLoopThread, waking the selector if necessary.
      */

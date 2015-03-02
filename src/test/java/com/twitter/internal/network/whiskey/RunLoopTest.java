@@ -13,17 +13,21 @@ public final class RunLoopTest {
         RunLoop runLoop = RunLoop.instance();
         runLoop.startThread();
 
-        final CountDownLatch latch = new CountDownLatch(1);
+        try {
+            final CountDownLatch latch = new CountDownLatch(1);
 
-        runLoop.execute(
-            new Runnable() {
-                public void run() {
-                    latch.countDown();
+            runLoop.execute(
+                new Runnable() {
+                    public void run() {
+                        latch.countDown();
+                    }
                 }
-            }
-        );
+            );
 
-        latch.await(1, TimeUnit.SECONDS);
+            latch.await(1, TimeUnit.SECONDS);
+        } finally {
+            runLoop.stopThread();
+        }
     }
 
 }
