@@ -106,12 +106,12 @@ class RunLoop implements Executor {
      */
      // TODO: provide selectionkey to socket on cancelation for close?
     @SuppressWarnings("ResourceType")
-    void register(Socket socket) {
+    void register(int interestSet, SelectableSocket socket) {
+        if (interestSet == 0) {
+            return;
+        }
 
         try {
-            int interestSet = socket.interestSet();
-            if (interestSet == 0) return;
-
             SelectionKey key = socket.getChannel().register(selector, interestSet);
             key.attach(socket);
         } catch(ClosedChannelException e) {
@@ -171,8 +171,8 @@ class RunLoop implements Executor {
                 iterator.remove();
 
                 Object attachment = key.attachment();
-                if (attachment instanceof Socket) {
-                    Socket socket = (Socket) attachment;
+                if (attachment instanceof SelectableSocket) {
+                    SelectableSocket socket = (SelectableSocket) attachment;
                     if (key.isConnectable()) {
                         executions++;
                         socket.onConnect();

@@ -17,7 +17,7 @@ import javax.net.ssl.SSLEngine;
 
 // TODO: remove readqueue -> currentRead only?
 // TODO: create runloopsocket interface
-class Socket {
+class Socket implements SelectableSocket {
     private static final int SOCKET_BUFFER_SIZE = 65536;
 
     private boolean disconnected = false;
@@ -49,7 +49,7 @@ class Socket {
             channel = SocketChannel.open();
             channel.configureBlocking(false);
             channel.connect(new InetSocketAddress(origin.getHost(), origin.getPort()));
-            runLoop.register(this);
+            runLoop.register(interestSet(), this);
         } catch (IOException e) {
             connectFuture.fail(e);
             closed = true;
@@ -57,7 +57,8 @@ class Socket {
         return connectFuture;
     }
 
-    SocketChannel getChannel() {
+    @Override
+    public SocketChannel getChannel() {
         return channel;
     }
 
@@ -65,7 +66,8 @@ class Socket {
         return channel.isConnected();
     }
 
-    void onConnect() {
+    @Override
+    public void onConnect() {
 
         try {
             channel.finishConnect();
@@ -77,19 +79,19 @@ class Socket {
     }
 
     void finishConnect() {
-
         connectFuture.set(origin);
-        runLoop.register(this);
+        runLoop.register(interestSet(), this);
     }
 
-    void onReadable() {
+    @Override
+    public void onReadable() {
 
         if (closed) {
             return;
         }
 
         if (currentRead == null) {
-            runLoop.register(this);
+            runLoop.register(interestSet(), this);
             return;
         }
 
@@ -112,17 +114,18 @@ class Socket {
             currentRead = readQueue.poll();
         }
 
-        runLoop.register(this);
+        runLoop.register(interestSet(), this);
     }
 
-    void onWriteable() {
+    @Override
+    public void onWriteable() {
 
         if (closed) {
             return;
         }
 
         if (currentWrite == null) {
-            runLoop.register(this);
+            runLoop.register(interestSet(), this);
             return;
         }
 
@@ -144,11 +147,10 @@ class Socket {
             currentWrite = writeQueue.poll();
         }
 
-        runLoop.register(this);
+        runLoop.register(interestSet(), this);
     }
 
-    int interestSet() {
-
+    private int interestSet() {
         if (channel.isConnectionPending()) return SelectionKey.OP_CONNECT;
 
         int interestSet = 0;
@@ -157,7 +159,8 @@ class Socket {
         return interestSet;
     }
 
-    void onClose() {
+    @Override
+    public void onClose() {
         close();
     }
 
