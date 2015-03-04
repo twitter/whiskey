@@ -43,17 +43,22 @@ class Socket implements SelectableSocket {
     }
 
     ConnectFuture connect() {
-
         connectFuture = new ConnectFuture();
-        try {
-            channel = SocketChannel.open();
-            channel.configureBlocking(false);
-            channel.connect(new InetSocketAddress(origin.getHost(), origin.getPort()));
-            runLoop.register(interestSet(), this);
-        } catch (IOException e) {
-            connectFuture.fail(e);
-            closed = true;
-        }
+
+        runLoop.execute(new Runnable() {
+            public void run() {
+                try {
+                    channel = SocketChannel.open();
+                    channel.configureBlocking(false);
+                    channel.connect(new InetSocketAddress(origin.getHost(), origin.getPort()));
+                    runLoop.register(interestSet(), Socket.this);
+                } catch (IOException e) {
+                    connectFuture.fail(e);
+                    closed = true;
+                }
+            }
+        });
+
         return connectFuture;
     }
 
