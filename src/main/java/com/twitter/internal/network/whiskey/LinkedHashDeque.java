@@ -2,6 +2,8 @@ package com.twitter.internal.network.whiskey;
 
 import android.support.annotation.NonNull;
 
+import java.lang.reflect.Array;
+import java.util.AbstractCollection;
 import java.util.Collection;
 import java.util.ConcurrentModificationException;
 import java.util.Deque;
@@ -13,14 +15,17 @@ import java.util.Set;
 /**
  * This {@link Deque} implementation has no inherent capacity restrictions and additionally
  * preserves the properties of a {@link Set}. It supports O(1) amortized performance for all
- * operations. It is a close analogue to {@link java.util.LinkedHashSet}, but with greater
- * accessibility and flexibility.
+ * operations.
+ *
+ * The idea to use a singly-linked list (and thus save a pointer on each node) by having the
+ * {@link HashMap} entry for a given element be the previous node in the list is thanks to
+ * Jared Roberts.
  *
  * @author Michael Schore
  */
-public class LinkedHashDeque<E> implements Deque<E>, Set<E> {
+public class LinkedHashDeque<E> extends AbstractCollection<E> implements Deque<E>, Set<E> {
 
-    static final class Node<E> {
+    private static final class Node<E> {
         E e;
         Node<E> next;
         Node(E e) { this.e = e; }
@@ -45,31 +50,39 @@ public class LinkedHashDeque<E> implements Deque<E>, Set<E> {
     }
 
     /**
-     * Removes the first {@param count} elements from the Deque and re-adds
+     * Removes the first {@param count} elements from the deque and re-adds
      * them to the tail.
      */
     public void rotate(int count) {
         if (size < 2) return;
         for (int i = 0; i < count; i++) {
-            addLast(getFirst());
+            addLast(pollFirst());
         }
     }
 
     /**
-     * If the element is already present in the Deque, it is removed and
-     * added to the head, preserving the {@link Set} property.
+     * @throws IllegalStateException if the element is already present in the deque
      */
     @Override
     public void addFirst(E e) {
+        if (!offerFirst(e)) throw new IllegalStateException();
+    }
 
+    /**
+     * @throws IllegalStateException if the element is already present in the deque
+     */
+    @Override
+    public void addLast(E e) {
+        if (!offerLast(e)) throw new IllegalStateException();
+    }
+
+    @Override
+    public boolean offerFirst(E e) {
+
+        if (map.containsKey(e)) return false;
         int sentinel = permutations;
 
-        Node<E> node = map.get(e);
-        if (node != null && head.next != node) {
-            remove(e);
-        } else {
-            node = new Node<E>(e);
-        }
+        Node<E> node = new Node<E>(e);
 
         if (head != tail) {
             map.put(head.next.e, node);
@@ -81,87 +94,80 @@ public class LinkedHashDeque<E> implements Deque<E>, Set<E> {
         node.next = head.next;
         head.next = node;
 
+        size++;
         if (sentinel != permutations) throw new ConcurrentModificationException();
         permutations++;
-    }
-
-    /**
-     * If the element is already present in the Deque, it is removed and
-     * added to the tail, preserving the {@link Set} property.
-     */
-    @Override
-    public void addLast(E e) {
-
-        int sentinel = permutations;
-
-        Node<E> node = map.get(e);
-        if (node != null && tail != node) {
-            remove(e);
-        } else {
-            node = new Node<E>(e);
-        }
-
-        tail.next = node;
-        map.put(e, tail);
-        tail = node;
-
-        if (sentinel != permutations) throw new ConcurrentModificationException();
-        permutations++;
-    }
-
-    @Override
-    public boolean offerFirst(E e) {
-        addFirst(e);
         return true;
     }
 
     @Override
     public boolean offerLast(E e) {
-        addLast(e);
+
+        if (map.containsKey(e)) return false;
+        int sentinel = permutations;
+
+        Node<E> node = new Node<E>(e);
+
+        tail.next = node;
+        map.put(e, tail);
+        tail = node;
+
+        size++;
+        if (sentinel != permutations) throw new ConcurrentModificationException();
+        permutations++;
         return true;
     }
 
     @Override
     public E removeFirst() {
-        if (size == 0) throw new NoSuchElementException();
+        E e = pollFirst();
+        if (e == null) throw new NoSuchElementException();
+        return e;
+    }
+
+    @Override
+    public E removeLast() {
+        E e = pollLast();
+        if (e == null) throw new NoSuchElementException();
+        return e;
+    }
+
+    @Override
+    public E pollFirst() {
+        if (size == 0) return null;
         E e = head.next.e;
         remove(e);
         return e;
     }
 
     @Override
-    public E removeLast() {
-        return null;
-    }
-
-    @Override
-    public E pollFirst() {
-        return null;
-    }
-
-    @Override
     public E pollLast() {
-        return null;
+        if (size == 0) return null;
+        E e = tail.e;
+        remove(e);
+        return e;
     }
 
     @Override
     public E getFirst() {
-        return null;
+        if (size == 0) throw new NoSuchElementException();
+        return head.next.e;
     }
 
     @Override
     public E getLast() {
-        return null;
+        if (size == 0) throw new NoSuchElementException();
+        return tail.e;
     }
 
     @Override
     public E peekFirst() {
-        return null;
+        return size > 0 ? head.next.e : null;
     }
 
     @Override
     public E peekLast() {
-        return null;
+        return size > 0 ? tail.e : null;
     }
 
     @Override
@@ -176,18 +182,7 @@ public class LinkedHashDeque<E> implements Deque<E>, Set<E> {
 
     @Override
     public boolean add(E e) {
-        if (e == tail.e) return false;
-        addLast(e);
-        return true;
-    }
-
-    @Override
-    public boolean addAll(Collection<? extends E> collection) {
-        boolean permuted = false;
-        for (E e : collection) {
-            if (add(e)) permuted = true;
-        }
-        return permuted;
+        return offerLast(e);
     }
 
     @Override
@@ -195,76 +190,68 @@ public class LinkedHashDeque<E> implements Deque<E>, Set<E> {
         map.clear();
         tail = head;
         size = 0;
+        permutations = 0;
     }
 
     @Override
     public boolean offer(E e) {
-        return false;
+        addLast(e);
+        return true;
     }
 
     @Override
     public E remove() {
-        return null;
+        return removeFirst();
     }
 
     @Override
     public E poll() {
-        return null;
+        return pollFirst();
     }
 
     @Override
     public E element() {
-        return null;
+        return getFirst();
     }
 
     @Override
     public E peek() {
-        return null;
+        return peekFirst();
     }
 
     @Override
     public void push(E e) {
-
+        addFirst(e);
     }
 
     @Override
     public E pop() {
-        return null;
+        return removeFirst();
     }
 
     @Override
     public boolean remove(Object o) {
-        return false;
-    }
 
-    @Override
-    public boolean removeAll(Collection<?> collection) {
-        return false;
-    }
+        int sentinel = permutations;
+        Node<E> node = map.remove(o);
+        if (node == null) return false;
 
-    @Override
-    public boolean retainAll(Collection<?> collection) {
-        return false;
+        if (node.next == tail) {
+            node.next = null;
+            tail = node;
+        } else {
+            node.next = node.next.next;
+            map.put(node.next.e, node);
+        }
+        size--;
+        if (sentinel != permutations) throw new ConcurrentModificationException();
+        permutations++;
+        return true;
     }
 
     @Override
     public boolean contains(Object o) {
-        return map.get(o) != null;
-    }
-
-    @Override
-    public boolean containsAll(Collection<?> collection) {
-        boolean present = true;
-        for (Object o : collection) {
-            if (map.get(o) == null) present = false;
-        }
-        return present;
-    }
-
-    @Override
-    public boolean isEmpty() {
-        // return head == tail;
-        return size == 0;
+        return map.containsKey(o);
     }
 
     @Override
@@ -273,24 +260,6 @@ public class LinkedHashDeque<E> implements Deque<E>, Set<E> {
     }
 
     @NonNull
-    @Override
-    public Object[] toArray() {
-        Object[] arr = new Object[size];
-        Node<E> current = head;
-        for (int i = 0; i < size; i++) {
-            current = current.next;
-            arr[i] = current.e;
-        }
-        return arr;
-    }
-
-    @NonNull
-    @Override
-    public <T> T[] toArray(T[] array) {
-
-        return null;
-    }
-
     @Override
     public Iterator<E> iterator() {
         return new Iterator<E>() {
