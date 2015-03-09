@@ -20,7 +20,7 @@ import java.util.concurrent.TimeUnit;
  */
 class RunLoop implements Executor {
 
-    private static RunLoop instance;
+    private static final RunLoop INSTANCE = new RunLoop();
 
     private final ConcurrentLinkedQueue<Runnable> tasks = new ConcurrentLinkedQueue<>();
     private final PriorityBlockingQueue<ScheduledRunnable> scheduledTasks = new PriorityBlockingQueue<>(1, ScheduledRunnable.Comparator());;
@@ -33,21 +33,18 @@ class RunLoop implements Executor {
     private volatile boolean paused = false;
     private volatile boolean selecting = false;
 
-    RunLoop() throws IOException {
-        selector = Selector.open();
+    RunLoop() {
+        try {
+            selector = Selector.open();
+        } catch (IOException e) {
+            // Apparently this is platform specific: it can in theory happen on Windows, but
+            // never on Linux. On Android... who knows? Not much we can do if it happens.
+            throw new RuntimeException(e);
+        }
     }
 
-    synchronized static RunLoop instance() {
-        if (instance == null) {
-            try {
-                instance = new RunLoop();
-            } catch (IOException e) {
-                // Apparently this is platform specific: it can in theory happen on Windows, but
-                // never on Linux. On Android... who knows? Not much we can do if it happens.
-                throw new RuntimeException(e);
-            }
-        }
-        return instance;
+    static RunLoop instance() {
+        return INSTANCE;
     }
 
     public void startThread() {
@@ -92,7 +89,7 @@ class RunLoop implements Executor {
             throw new IllegalArgumentException();
         }
 
-        long triggerPoint = PlatformAdapter.get().timestamp() + unit.toMillis(delay);
+        long triggerPoint = PlatformAdapter.instance().timestamp() + unit.toMillis(delay);
         scheduledTasks.add(new ScheduledRunnable(command, triggerPoint, unit.toMillis(tolerance)));
         // TODO: investigate and fix race if necessary - documentation seems to indicate it won't be
         if (selecting) {
@@ -136,7 +133,7 @@ class RunLoop implements Executor {
         ScheduledRunnable nextScheduledTask;
         while (!scheduledTasks.isEmpty()) {
             nextScheduledTask = scheduledTasks.peek();
-            long now = PlatformAdapter.get().timestamp();
+            long now = PlatformAdapter.instance().timestamp();
             if (nextScheduledTask.triggerPoint <= now - nextScheduledTask.tolerance) {
                 // Discard the task - we missed the tolerance window
                 scheduledTasks.poll();

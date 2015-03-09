@@ -513,7 +513,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
 
             @Override
             public Executor getExecutor() {
-                return InlineExecutor.instance();
+                return Inline.INSTANCE;
             }
         });
     }

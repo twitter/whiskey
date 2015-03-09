@@ -19,7 +19,7 @@ class RequestOperation extends CompletableFuture<Response> implements ResponseFu
 
     RequestOperation(WhiskeyClient client, Request request) {
 
-        startMs = PlatformAdapter.get().timestamp();
+        startMs = PlatformAdapter.instance().timestamp();
 
         this.client = client;
         originalRequest = request;
@@ -68,7 +68,7 @@ class RequestOperation extends CompletableFuture<Response> implements ResponseFu
     }
 
     void finalizeStats() {
-        stats.durationMs = PlatformAdapter.get().timestamp() - startMs;
+        stats.durationMs = PlatformAdapter.instance().timestamp() - startMs;
     }
 
     public int getRemainingRedirects() {

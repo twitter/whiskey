@@ -84,7 +84,7 @@ class SessionManager {
 
             @Override
             public Executor getExecutor() {
-                return InlineExecutor.instance();
+                return Inline.INSTANCE;
             }
         });
 
@@ -135,7 +135,7 @@ class SessionManager {
 
             @Override
             public Executor getExecutor() {
-                return InlineExecutor.instance();
+                return Inline.INSTANCE;
             }
         });
     }
