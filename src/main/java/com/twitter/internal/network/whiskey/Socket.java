@@ -8,33 +8,24 @@ import java.nio.channels.SocketChannel;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
-import java.util.Iterator;
-import java.util.LinkedHashSet;
 import java.util.concurrent.TimeUnit;
 
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLEngine;
 
-// TODO: remove readqueue -> currentRead only?
-// TODO: create runloopsocket interface
 class Socket implements SelectableSocket {
+
     private static final int SOCKET_BUFFER_SIZE = 65536;
 
-    private boolean disconnected = false;
+    private final Origin origin;
+    private final RunLoop runLoop;
+    private final ByteBuffer socketBuffer;
+
     private boolean closed = false;
 
     private SocketChannel channel;
-    private SSLContext context;
-    private SSLEngine engine;
 
-    private ByteBuffer socketBuffer;
     private ConnectFuture connectFuture;
-    private ReadFuture currentRead;
-    private WriteFuture currentWrite;
     private Deque<ReadFuture> readQueue = new ArrayDeque<>(1);
     private Deque<WriteFuture> writeQueue = new ArrayDeque<>(32);
-    private RunLoop runLoop;
-    private Origin origin;
 
     Socket(Origin origin, RunLoop runLoop) {
         this.origin = origin;
@@ -51,7 +42,7 @@ class Socket implements SelectableSocket {
                     channel = SocketChannel.open();
                     channel.configureBlocking(false);
                     channel.connect(new InetSocketAddress(origin.getHost(), origin.getPort()));
-                    runLoop.register(interestSet(), Socket.this);
+                    reregister();
                 } catch (IOException e) {
                     connectFuture.fail(e);
                     closed = true;
@@ -62,142 +53,18 @@ class Socket implements SelectableSocket {
         return connectFuture;
     }
 
-    @Override
-    public SocketChannel getChannel() {
-        return channel;
-    }
-
-    public boolean isConnected() {
-        return channel.isConnected();
-    }
-
-    @Override
-    public void onConnect() {
-
-        try {
-            channel.finishConnect();
-        } catch (IOException e) {
-            connectFuture.fail(e);
-            closed = true;
-        }
-        finishConnect();
-    }
-
-    void finishConnect() {
-        connectFuture.set(origin);
-        runLoop.register(interestSet(), this);
-    }
-
-    @Override
-    public void onReadable() {
-
-        if (closed) {
-            return;
-        }
-
-        if (currentRead == null) {
-            runLoop.register(interestSet(), this);
-            return;
-        }
-
-        int bytesRead = 0;
-        try {
-            bytesRead = channel.read(socketBuffer);
-        } catch (IOException e) {
-            close(e);
-            return;
-        }
-
-        // Shouldn't be possible if both headers and body data can be incrementally decoded
-        assert(bytesRead > 0 || socketBuffer.position() < socketBuffer.limit());
-        assert(!currentRead.isDone());
-
-        if (bytesRead > 0) {
-            socketBuffer.flip();
-            currentRead.set(socketBuffer);
-            socketBuffer.compact();
-            currentRead = readQueue.poll();
-        }
-
-        runLoop.register(interestSet(), this);
-    }
-
-    @Override
-    public void onWriteable() {
-
-        if (closed) {
-            return;
-        }
-
-        if (currentWrite == null) {
-            runLoop.register(interestSet(), this);
-            return;
-        }
-
-        assert(!currentWrite.isDone());
-        ByteBuffer[] writeData = currentWrite.pending();
-
-        long bytesWritten = 0;
-        try {
-             bytesWritten = channel.write(writeData);
-        } catch (IOException e) {
-            close(e);
-            return;
-        }
-
-        ByteBuffer finalData = writeData[writeData.length - 1];
-        boolean writeComplete = finalData.position() == finalData.limit();
-        currentWrite.provide(bytesWritten, writeComplete);
-        if (writeComplete) {
-            currentWrite = writeQueue.poll();
-        }
-
-        runLoop.register(interestSet(), this);
-    }
-
-    private int interestSet() {
-        if (channel.isConnectionPending()) return SelectionKey.OP_CONNECT;
-
-        int interestSet = 0;
-        if (currentRead != null) interestSet = SelectionKey.OP_READ;
-        if (currentWrite != null) interestSet |= SelectionKey.OP_WRITE;
-        return interestSet;
-    }
-
-    @Override
-    public void onClose() {
-        close();
-    }
-
-    boolean isSecure() {
-        return false;
-    }
-
-    void close(Throwable e) {
-
-        if (closed) return;
-        closed = true;
-    }
-
-    void close() {
-
-        if (closed) return;
-        closed = true;
-    }
-
     ReadFuture read() {
-
         final ReadFuture readFuture = new ReadFuture();
-        if (currentRead == null) {
-            currentRead = readFuture;
 
-            // If connected, try reading immediately
-            if (isConnected()) {
-                onReadable();
+        runLoop.execute(new Runnable() {
+            public void run() {
+                readQueue.add(readFuture);
+
+                if (isConnected() && readQueue.size() == 1) {
+                    reregister();
+                }
             }
-        } else {
-            readQueue.add(readFuture);
-        }
+        });
 
         return readFuture;
     }
@@ -211,18 +78,13 @@ class Socket implements SelectableSocket {
     }
 
     WriteFuture write(ByteBuffer[] data) {
-
         final WriteFuture writeFuture = new WriteFuture(data);
-        if (currentWrite == null) {
-            currentWrite = writeFuture;
 
-            // If connected, try writing immediately
-            if (isConnected()) {
-                onWriteable();
+        runLoop.execute(new Runnable() {
+            public void run() {
+                writeInternal(writeFuture);
             }
-        } else {
-            writeQueue.add(writeFuture);
-        }
+        });
 
         return writeFuture;
     }
@@ -233,6 +95,151 @@ class Socket implements SelectableSocket {
 
     WriteFuture write(ByteBuffer[] data, int timeout, TimeUnit timeoutUnit) {
         return write(data);
+    }
+
+    void writeInternal(WriteFuture writeFuture) {
+        getWriteQueue().add(writeFuture);
+
+        if (isConnected() && getWriteQueue().size() == 1) {
+            reregister();
+        }
+    }
+
+    Deque<WriteFuture> getWriteQueue() {
+        return writeQueue;
+    }
+
+    @Override
+    public void onConnect() {
+        try {
+            channel.finishConnect();
+            finishConnect();
+        } catch (IOException e) {
+            connectFuture.fail(e);
+            closed = true;
+        }
+    }
+
+    void finishConnect() {
+        connectFuture.set(origin);
+        reregister();
+    }
+
+    void failConnect(Throwable thr) {
+        connectFuture.fail(thr);
+    }
+
+    @Override
+    public void onReadable() {
+
+        if (closed) {
+            return;
+        }
+
+        if (readQueue.isEmpty()) {
+            reregister();
+            return;
+        }
+
+        int bytesRead;
+        try {
+            bytesRead = channel.read(socketBuffer);
+        } catch (IOException e) {
+            close(e);
+            return;
+        }
+
+        // Shouldn't be possible if both headers and body data can be incrementally decoded
+        assert(bytesRead > 0 || socketBuffer.position() < socketBuffer.limit());
+
+        ReadFuture currentRead = readQueue.peek();
+
+        assert(!currentRead.isDone());
+
+        if (bytesRead > 0) {
+            socketBuffer.flip();
+            currentRead.set(socketBuffer);
+            socketBuffer.compact();
+            readQueue.poll();
+        }
+
+        reregister();
+    }
+
+    @Override
+    public void onWriteable() {
+
+        if (closed) {
+            return;
+        }
+
+        if (getWriteQueue().isEmpty()) {
+            reregister();
+            return;
+        }
+
+        WriteFuture currentWrite = getWriteQueue().peek();
+
+        assert(!currentWrite.isDone());
+        ByteBuffer[] writeData = currentWrite.pending();
+
+        long bytesWritten;
+        try {
+             bytesWritten = channel.write(writeData);
+        } catch (IOException e) {
+            close(e);
+            return;
+        }
+
+        ByteBuffer finalData = writeData[writeData.length - 1];
+        boolean writeComplete = finalData.position() == finalData.limit();
+        currentWrite.provide(bytesWritten, writeComplete);
+        if (writeComplete) {
+            getWriteQueue().poll();
+        }
+
+        reregister();
+    }
+
+    void reregister() {
+        runLoop.register(interestSet(), this);
+    }
+
+    @Override
+    public SocketChannel getChannel() {
+        return channel;
+    }
+
+    public boolean isConnected() {
+        return channel.isConnected();
+    }
+
+    private int interestSet() {
+        if (channel.isConnectionPending()) return SelectionKey.OP_CONNECT;
+
+        int interestSet = 0;
+        if (!readQueue.isEmpty()) interestSet = SelectionKey.OP_READ;
+        if (!getWriteQueue().isEmpty()) interestSet |= SelectionKey.OP_WRITE;
+        return interestSet;
+    }
+
+    @Override
+    public void onClose() {
+        close();
+    }
+
+    boolean isSecure() {
+        return false;
+    }
+
+    void close(Throwable e) {
+        if (closed) return;
+        closed = true;
+    }
+
+    void close() {
+        if (closed) return;
+        closed = true;
     }
 
     public Request.Protocol getProtocol() {
@@ -254,6 +261,7 @@ class Socket implements SelectableSocket {
         ByteBuffer[] data;
         ArrayList<Long> bytesWritten;
         Long totalBytesWritten;
+        private ByteBuffer[] pending;
 
         WriteFuture(ByteBuffer[] data) {
             this.data = data;
@@ -263,6 +271,10 @@ class Socket implements SelectableSocket {
 
         ByteBuffer[] pending() {
             return data;
+        }
+
+        public void setPending(ByteBuffer[] pending) {
+            this.data = pending;
         }
 
         @Override
@@ -283,7 +295,8 @@ class Socket implements SelectableSocket {
 
         @Override
         public boolean cancel(boolean mayInterruptIfRunning) {
-            return writeQueue.contains(this) && super.cancel(mayInterruptIfRunning) && writeQueue.remove(this);
+            return getWriteQueue().contains(this) && super.cancel(mayInterruptIfRunning) && getWriteQueue().remove(this);
         }
+
     }
 }
