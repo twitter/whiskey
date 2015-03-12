@@ -19,14 +19,12 @@ final class SpdyStream {
         }};
     }
 
-    public static int STREAM_ID_UNSET = 0;
-
     private RequestOperation operation;
     private Request.Method redirectMethod;
     private URL redirectURL;
     private Integer statusCode;
+    private final int priority;
     private int streamId;
-    private int priority;
     private int sendWindow;
     private int receiveWindow;
     private int unackedWindow;
@@ -38,14 +36,11 @@ final class SpdyStream {
     private boolean receivedReply;
     private boolean finalResponse;
 
-    SpdyStream() {
-
-    }
-
-    SpdyStream(boolean local) {
+    SpdyStream(boolean local, int priority) {
         this.local = local;
         closedLocally = !local;
         closedRemotely = false;
+        this.priority = priority & 0x07;
     }
 
     SpdyStream(RequestOperation operation) {
@@ -53,6 +48,7 @@ final class SpdyStream {
         closedLocally = true;
         closedRemotely = false;
         this.operation = operation;
+        this.priority = Math.min(7, (int) ((1d - operation.getCurrentRequest().getPriority()) * 8));
     }
 
     void open(int streamId, int sendWindow, int receiveWindow) {
@@ -73,10 +69,6 @@ final class SpdyStream {
 
     int getPriority() {
         return priority;
-    }
-
-    void setPriority(int priority) {
-        this.priority = priority;
     }
 
     void setStreamId(int streamId) {
@@ -209,7 +201,7 @@ final class SpdyStream {
                 Request redirect = new RequestBuilder(currentRequest)
                     .method(redirectMethod)
                     .url(redirectURL)
-                    .body(null)
+                    .body()
                     .create();
                 operation.redirect(redirect);
             }

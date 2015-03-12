@@ -2,29 +2,30 @@ package com.twitter.internal.network.whiskey;
 
 import android.support.annotation.NonNull;
 
-import java.lang.reflect.Array;
-import java.util.ArrayList;
-import java.util.Collection;
+import java.util.AbstractCollection;
 import java.util.Collections;
+import java.util.ConcurrentModificationException;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Set;
 
-final class SpdyStreamManager implements Set<SpdyStream> {
+import static com.twitter.internal.network.whiskey.SpdyConstants.PRIORITY_LEVELS;
 
-    private static final int PRIORITIES = 8;
+final class SpdyStreamManager extends AbstractCollection<SpdyStream> implements Set<SpdyStream> {
 
-    private final List<List<SpdyStream>> streamLists = new ArrayList<List<SpdyStream>>() {{
-        for (int i = 0; i < PRIORITIES; i++) {
-            add(new ArrayList<SpdyStream>());
+    @SuppressWarnings("unchecked")
+    private static final LinkedHashDeque<SpdyStream>[] streamSets = new LinkedHashDeque[PRIORITY_LEVELS];
+    static {
+        for (int i = 0; i < PRIORITY_LEVELS; i++) {
+            streamSets[i] = new LinkedHashDeque<>();
         }
-    }};
-    private final Map<Integer, SpdyStream> streamIdMap = new HashMap<>();
-    private final Set<SpdyStream> streamSet = new HashSet<>();
+    }
 
+    private final Map<Integer, SpdyStream> streamMap = new HashMap<>();
+
+    private volatile int permutations = 0;
     private int localSize = 0;
     private int remoteSize = 0;
 
@@ -33,18 +34,14 @@ final class SpdyStreamManager implements Set<SpdyStream> {
 
     @Override
     public boolean add(SpdyStream stream) {
-        if (!streamSet.add(stream)) {
-            return false;
-        }
 
         final int priority = stream.getPriority();
-        assert priority >= 0 && priority < PRIORITIES;
-        streamLists.get(priority).add(stream);
+        assert priority >= 0 && priority < PRIORITY_LEVELS;
+        streamSets[priority].add(stream);
 
         final int streamId = stream.getStreamId();
-        if (streamId > 0) {
-            streamIdMap.put(streamId, stream);
-        }
+        assert streamId > 0;
+        streamMap.put(streamId, stream);
 
         if (stream.isLocal()) {
             localSize++;
@@ -52,41 +49,25 @@ final class SpdyStreamManager implements Set<SpdyStream> {
             remoteSize++;
         }
 
+        permutations++;
         return true;
-    }
-
-    @Override
-    public boolean addAll(Collection<? extends SpdyStream> collection) {
-
-        boolean streamAdded = false;
-        for (SpdyStream stream : collection) {
-            if (add(stream)) {
-                streamAdded = true;
-            }
-        }
-        return streamAdded;
     }
 
     @Override
     public void clear() {
 
-        for (List streamList : streamLists) {
-            streamList.clear();
+        for (LinkedHashDeque<SpdyStream> streamSet : streamSets) {
+            streamSet.clear();
         }
-        streamIdMap.clear();
-        streamSet.clear();
+        streamMap.clear();
+        permutations = 0;
         localSize = 0;
         remoteSize = 0;
     }
 
     @Override
     public boolean contains(Object object) {
-        return streamSet.contains(object);
-    }
-
-    @Override
-    public boolean containsAll(@NonNull Collection<?> collection) {
-        return streamSet.containsAll(collection);
+        return streamMap.containsKey(((SpdyStream) object).getStreamId());
     }
 
     @Override
@@ -94,19 +75,16 @@ final class SpdyStreamManager implements Set<SpdyStream> {
         return localSize == 0 && remoteSize == 0;
     }
 
-    public boolean containsKey(Integer streamId) {
-        return streamIdMap.containsKey(streamId);
-    }
-
     public SpdyStream get(Integer streamId) {
-        return streamIdMap.get(streamId);
+        return streamMap.get(streamId);
     }
 
     @NonNull
     @Override
     public Iterator<SpdyStream> iterator() {
+
         if (localSize > 0 || remoteSize > 0) {
-            return new SpdyStreamIterator(streamLists);
+            return new SpdyStreamIterator();
         }
 
         return Collections.<SpdyStream>emptyList().iterator();
@@ -115,18 +93,14 @@ final class SpdyStreamManager implements Set<SpdyStream> {
     @Override
     public boolean remove(Object object) {
 
-        if (!streamSet.remove(object)) {
+        final SpdyStream stream = (SpdyStream)object;
+        if (!streamSets[stream.getPriority()].remove(stream)) {
             return false;
         }
-        SpdyStream stream = (SpdyStream)object;
-
-        final int priority = stream.getPriority();
-        assert priority >= 0 && priority < PRIORITIES;
-        streamLists.get(priority).remove(stream);
 
         final int streamId = stream.getStreamId();
         if (streamId > 0) {
-            streamIdMap.remove(streamId);
+            streamMap.remove(streamId);
         }
 
         if (stream.isLocal()) {
@@ -135,32 +109,8 @@ final class SpdyStreamManager implements Set<SpdyStream> {
             remoteSize--;
         }
 
+        permutations++;
         return true;
-    }
-
-    @Override
-    public boolean removeAll(@NonNull Collection<?> collection) {
-
-        boolean streamRemoved = false;
-        for (Object o : collection) {
-            if (remove(o)) {
-                streamRemoved = true;
-            }
-        }
-        return streamRemoved;
-    }
-
-    @Override
-    public boolean retainAll(@NonNull Collection<?> collection) {
-
-        boolean streamRemoved = false;
-        for (SpdyStream stream : this) {
-            if (!collection.contains(stream)) {
-                remove(stream);
-                streamRemoved = true;
-            }
-        }
-        return streamRemoved;
     }
 
     @Override
@@ -176,60 +126,28 @@ final class SpdyStreamManager implements Set<SpdyStream> {
         return remoteSize;
     }
 
-    @NonNull
-    @Override
-    public Object[] toArray() {
-
-        SpdyStream[] array = new SpdyStream[localSize + remoteSize];
-
-        int i = 0;
-        for (SpdyStream stream : this) {
-            array[i++] = stream;
-        }
-        return array;
-    }
-
-    @NonNull
-    @Override
-    @SuppressWarnings("unchecked")
-    public <T> T[] toArray(@NonNull T[] array) {
-
-        int size = localSize + remoteSize;
-        if (array.length < size) {
-            array = (T[])Array.newInstance(array.getClass().getComponentType(), size);
-        } else if (array.length > size) {
-            array[size] = null;
-        }
-
-        int i = 0;
-        for (SpdyStream stream : this) {
-            array[i++] = (T)stream;
-        }
-        return array;
-    }
-
     private final class SpdyStreamIterator implements Iterator<SpdyStream> {
-        private final Iterator<List<SpdyStream>> listIterator;
         private Iterator<SpdyStream> streamIterator;
+        private SpdyStream removeable;
+        private int setIndex;
+        private int sentinel;
 
-        SpdyStreamIterator(List<List<SpdyStream>> streamLists) {
+        SpdyStreamIterator() {
 
-            listIterator = streamLists.iterator();
-            streamIterator = listIterator.next().iterator();
+            sentinel = permutations;
+            setIndex = 0;
+            streamIterator = streamSets[setIndex].iterator();
         }
 
         @Override
         public boolean hasNext() {
 
-            if (streamIterator.hasNext()) {
-                return true;
-            }
+            if (sentinel != permutations) throw new ConcurrentModificationException();
+            if (streamIterator.hasNext()) return true;
 
-            while (listIterator.hasNext()) {
-                streamIterator = listIterator.next().iterator();
-                if (streamIterator.hasNext()) {
-                    return true;
-                }
+            while (++setIndex < PRIORITY_LEVELS) {
+                streamIterator = streamSets[setIndex].iterator();
+                if (streamIterator.hasNext()) return true;
             }
 
             return false;
@@ -239,15 +157,21 @@ final class SpdyStreamManager implements Set<SpdyStream> {
         public SpdyStream next() {
 
             if (hasNext()) {
-                return streamIterator.next();
+                removeable = streamIterator.next();
+                return removeable;
             }
 
-            return null;
+            throw new NoSuchElementException();
         }
 
         @Override
         public void remove() {
-            throw new UnsupportedOperationException();
+
+            if (sentinel != permutations) throw new ConcurrentModificationException();
+            if (removeable == null) throw new IllegalStateException();
+            SpdyStreamManager.this.remove(removeable);
+            removeable = null;
+            sentinel++;
         }
     }
 }

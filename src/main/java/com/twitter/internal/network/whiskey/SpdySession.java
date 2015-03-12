@@ -227,7 +227,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
             return;
         }
 
-        SpdyStream stream = new SpdyStream(false);
+        SpdyStream stream = new SpdyStream(false, priority);
         stream.open(streamId, initialSendWindow, initialReceiveWindow);
 
         lastGoodStreamId = streamId;

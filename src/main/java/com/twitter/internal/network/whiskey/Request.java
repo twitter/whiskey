@@ -89,6 +89,10 @@ public class Request {
         return maxRedirects;
     }
 
+    public double getPriority() {
+        return priority;
+    }
+
     /**
      * HTTP Request Method as specified in RFC 2616
      * http://www.w3.org/Protocols/rfc2616/rfc2616-sec9.html

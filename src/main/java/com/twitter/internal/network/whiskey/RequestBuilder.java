@@ -90,7 +90,7 @@ public class RequestBuilder {
     }
 
     public RequestBuilder body(ByteBuffer ... body) {
-        bodyData = body;
+        bodyData = body.length > 0 ? body : null;
         bodyChannel = null;
         return this;
     }
