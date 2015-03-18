@@ -4,24 +4,41 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.ServerSocket;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 
-final class EchoServer {
+class EchoServer {
 
     private final static int NUM_THREADS = 5;
 
-    private final ServerSocket serverSocket;
+    private final int port;
     private final ExecutorService executor;
 
+    private ServerSocket serverSocket;
+    private List<Task> tasks = new ArrayList<>();
+
     EchoServer(int port) throws IOException {
-        serverSocket = new ServerSocket(port);
-        executor = Executors.newFixedThreadPool(NUM_THREADS);
+        this.port = port;
+        this.executor = Executors.newFixedThreadPool(NUM_THREADS);
     }
 
-    void start() {
-        executor.execute(new AcceptTask());
+    void addTask(Task task) {
+        synchronized (tasks) {
+            tasks.add(task);
+        }
+    }
+
+    ServerSocket createServerSocket(int port) throws Exception {
+        return new ServerSocket(port);
+    }
+
+    void start() throws Exception {
+        serverSocket = createServerSocket(port);
+        executor.execute(new AcceptTask(serverSocket, executor));
     }
 
     void stop() throws IOException {
@@ -31,31 +48,54 @@ final class EchoServer {
 
     private final class AcceptTask implements Runnable {
 
+        private final ServerSocket serverSocket;
+        private final Executor executor;
+
+        private AcceptTask(ServerSocket serverSocket, Executor executor) {
+            this.serverSocket = serverSocket;
+            this.executor = executor;
+        }
+
         @Override
         public void run() {
-            while (true) {
-                try {
-                    java.net.Socket socket = serverSocket.accept();
-                    executor.execute(new EchoTask(socket));
-                } catch (IOException | RejectedExecutionException ioe) {
-                    break;
-                }
+            try {
+                final java.net.Socket socket = serverSocket.accept();
+
+                executor.execute(new Runnable() {
+
+                    @Override
+                    public void run() {
+                        synchronized (tasks) {
+                            try {
+                                for (EchoServer.Task task : tasks) {
+                                    task.execute(serverSocket, socket);
+                                }
+                            } catch (IOException ioe) {
+                                throw new AssertionError(ioe);
+                            }
+                        }
+                    }
+
+                });
+            } catch (IOException | RejectedExecutionException ioe) {
+                System.err.println("IOE: " + ioe);
             }
         }
     }
 
-    private final class EchoTask implements Runnable {
+    interface Task {
 
-        private final InputStream in;
-        private final OutputStream out;
+        public void execute(ServerSocket serverSocket, java.net.Socket socket) throws IOException;
 
-        EchoTask(java.net.Socket socket) throws IOException {
-            this.in = socket.getInputStream();
-            this.out = socket.getOutputStream();
-        }
+    }
+
+    final static class EchoTask implements Task {
 
         @Override
-        public void run() {
+        public void execute(ServerSocket serverSocket, java.net.Socket socket) throws IOException {
+            InputStream in = socket.getInputStream();
+            OutputStream out = socket.getOutputStream();
+
             byte[] buf = new byte[4096];
             while (true) {
                 try {

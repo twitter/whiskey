@@ -13,11 +13,8 @@ import java.util.concurrent.TimeUnit;
 
 class Socket implements SelectableSocket {
 
-    private static final int SOCKET_BUFFER_SIZE = 65536;
-
     private final Origin origin;
     private final RunLoop runLoop;
-    private final ByteBuffer socketBuffer;
 
     private boolean closed = false;
 
@@ -30,7 +27,6 @@ class Socket implements SelectableSocket {
     Socket(Origin origin, RunLoop runLoop) {
         this.origin = origin;
         this.runLoop = runLoop;
-        socketBuffer = ByteBuffer.allocate(SOCKET_BUFFER_SIZE);
     }
 
     ConnectFuture connect() {
@@ -54,13 +50,15 @@ class Socket implements SelectableSocket {
     }
 
     ReadFuture read() {
-        final ReadFuture readFuture = new ReadFuture();
+        return read(new ReadFuture());
+    }
 
+    ReadFuture read(final ReadFuture readFuture) {
         runLoop.execute(new Runnable() {
             public void run() {
-                readQueue.add(readFuture);
+                getReadQueue().add(readFuture);
 
-                if (isConnected() && readQueue.size() == 1) {
+                if (channel != null && getReadQueue().size() == 1) {
                     reregister();
                 }
             }
@@ -78,15 +76,7 @@ class Socket implements SelectableSocket {
     }
 
     WriteFuture write(ByteBuffer[] data) {
-        final WriteFuture writeFuture = new WriteFuture(data);
-
-        runLoop.execute(new Runnable() {
-            public void run() {
-                writeInternal(writeFuture);
-            }
-        });
-
-        return writeFuture;
+        return write(new WriteFuture(data));
     }
 
     WriteFuture write(ByteBuffer data, int timeout, TimeUnit timeoutUnit) {
@@ -97,14 +87,24 @@ class Socket implements SelectableSocket {
         return write(data);
     }
 
-    void writeInternal(WriteFuture writeFuture) {
-        getWriteQueue().add(writeFuture);
+    WriteFuture write(final WriteFuture writeFuture) {
+        runLoop.execute(new Runnable() {
+            public void run() {
+                getWriteQueue().add(writeFuture);
 
-        if (isConnected() && getWriteQueue().size() == 1) {
-            reregister();
-        }
+                if (isConnected() && getWriteQueue().size() == 1) {
+                    reregister();
+                }
+            }
+        });
+
+        return writeFuture;
     }
 
+    Deque<ReadFuture> getReadQueue() {
+        return readQueue;
+    }
+    
     Deque<WriteFuture> getWriteQueue() {
         return writeQueue;
     }
@@ -131,35 +131,30 @@ class Socket implements SelectableSocket {
 
     @Override
     public void onReadable() {
-
+        
         if (closed) {
             return;
         }
 
+        Deque<ReadFuture> readQueue = getReadQueue();
+        
         if (readQueue.isEmpty()) {
             reregister();
             return;
         }
 
-        int bytesRead;
+        ReadFuture currentRead = readQueue.peek();
+        assert (!currentRead.isDone());
+
+        boolean complete;
         try {
-            bytesRead = channel.read(socketBuffer);
+            complete = currentRead.doRead(channel);
         } catch (IOException e) {
             close(e);
             return;
         }
 
-        // Shouldn't be possible if both headers and body data can be incrementally decoded
-        assert(bytesRead > 0 || socketBuffer.position() < socketBuffer.limit());
-
-        ReadFuture currentRead = readQueue.peek();
-
-        assert(!currentRead.isDone());
-
-        if (bytesRead > 0) {
-            socketBuffer.flip();
-            currentRead.set(socketBuffer);
-            socketBuffer.compact();
+        if (complete) {
             readQueue.poll();
         }
 
@@ -173,28 +168,25 @@ class Socket implements SelectableSocket {
             return;
         }
 
-        if (getWriteQueue().isEmpty()) {
+        Deque<WriteFuture> writeQueue = getWriteQueue();
+
+        if (writeQueue.isEmpty()) {
             reregister();
             return;
         }
 
-        WriteFuture currentWrite = getWriteQueue().peek();
-
+        WriteFuture currentWrite = writeQueue.peek();
         assert(!currentWrite.isDone());
-        ByteBuffer[] writeData = currentWrite.pending();
 
-        long bytesWritten;
+        boolean complete;
         try {
-             bytesWritten = channel.write(writeData);
+             complete = currentWrite.doWrite();
         } catch (IOException e) {
             close(e);
             return;
         }
 
-        ByteBuffer finalData = writeData[writeData.length - 1];
-        boolean writeComplete = finalData.position() == finalData.limit();
-        currentWrite.provide(bytesWritten, writeComplete);
-        if (writeComplete) {
+        if (complete) {
             getWriteQueue().poll();
         }
 
@@ -211,14 +203,14 @@ class Socket implements SelectableSocket {
     }
 
     public boolean isConnected() {
-        return channel.isConnected();
+        return channel != null && channel.isConnected();
     }
 
     private int interestSet() {
         if (channel.isConnectionPending()) return SelectionKey.OP_CONNECT;
 
         int interestSet = 0;
-        if (!readQueue.isEmpty()) interestSet = SelectionKey.OP_READ;
+        if (!getReadQueue().isEmpty()) interestSet = SelectionKey.OP_READ;
         if (!getWriteQueue().isEmpty()) interestSet |= SelectionKey.OP_WRITE;
         return interestSet;
     }
@@ -251,17 +243,42 @@ class Socket implements SelectableSocket {
 
     class ReadFuture extends CompletableFuture<ByteBuffer> {
 
+        private static final int BUFFER_SIZE = 18 * 1024;
+
+        private final ByteBuffer buffer = ByteBuffer.allocate(BUFFER_SIZE);
+
+        boolean doRead(SocketChannel channel) throws IOException {
+
+            ByteBuffer buffer = getBuffer();
+
+            int bytesRead = channel.read(buffer);
+
+            // Shouldn't be possible if both headers and body data can be incrementally decoded
+            assert (bytesRead > 0 || buffer.position() < buffer.limit());
+
+            if (bytesRead > 0) {
+                buffer.flip();
+                set(buffer);
+                return true;
+            } else {
+                return false;
+            }
+        }
+
         @Override
         public boolean cancel(boolean mayInterruptIfRunning) {
-            return readQueue.contains(this) && super.cancel(mayInterruptIfRunning) && readQueue.remove(this);
+            return getReadQueue().contains(this) && super.cancel(mayInterruptIfRunning) && getReadQueue().remove(this);
+        }
+
+        public ByteBuffer getBuffer() {
+            return buffer;
         }
     }
 
     class WriteFuture extends ReactiveFuture<Long, Long> {
-        ByteBuffer[] data;
+        private ByteBuffer[] data;
         ArrayList<Long> bytesWritten;
         Long totalBytesWritten;
-        private ByteBuffer[] pending;
 
         WriteFuture(ByteBuffer[] data) {
             this.data = data;
@@ -269,12 +286,21 @@ class Socket implements SelectableSocket {
             totalBytesWritten = (long)0;
         }
 
-        ByteBuffer[] pending() {
+        ByteBuffer[] pending() throws IOException {
             return data;
         }
 
         public void setPending(ByteBuffer[] pending) {
             this.data = pending;
+        }
+
+        boolean doWrite() throws IOException {
+            long bytesWritten = channel.write(data);
+
+            ByteBuffer finalData = data[data.length - 1];
+            boolean writeComplete = finalData.position() == finalData.limit();
+            provide(bytesWritten, writeComplete);
+            return writeComplete;
         }
 
         @Override

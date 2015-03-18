@@ -53,11 +53,7 @@ class RunLoop implements Executor {
 
     public void stopThread() throws InterruptedException {
         paused = true;
-
-        if (selecting) {
-          selector.wakeup();
-        }
-
+        selector.wakeup();
         thread.join();
     }
 
@@ -67,7 +63,6 @@ class RunLoop implements Executor {
     @Override
     public void execute(@NonNull Runnable command) {
         tasks.add(command);
-        // TODO: investigate and fix race if necessary - documentation seems to indicate it won't be
         if (selecting) {
             selector.wakeup();
         }
@@ -91,10 +86,7 @@ class RunLoop implements Executor {
 
         long triggerPoint = PlatformAdapter.instance().timestamp() + unit.toMillis(delay);
         scheduledTasks.add(new ScheduledRunnable(command, triggerPoint, unit.toMillis(tolerance)));
-        // TODO: investigate and fix race if necessary - documentation seems to indicate it won't be
-        if (selecting) {
-            selector.wakeup();
-        }
+        selector.wakeup();
     }
 
      /**
@@ -154,7 +146,9 @@ class RunLoop implements Executor {
         // Select
         try {
             selecting = true;
-            readyChannels = selector.select(selectTimeout);
+            if (tasks.size() == 0 && scheduledTasks.size() == 0) {
+                readyChannels = selector.select(selectTimeout);
+            }
             selecting = false;
         } catch (IOException e) {
             // TODO: handle closed channels

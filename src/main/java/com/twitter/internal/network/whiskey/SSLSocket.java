@@ -3,11 +3,12 @@ package com.twitter.internal.network.whiskey;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLEngineResult;
 import javax.net.ssl.SSLException;
+import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.SocketChannel;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
-import java.util.List;
 import java.util.concurrent.Executor;
 
 final class SSLSocket extends Socket {
@@ -16,12 +17,16 @@ final class SSLSocket extends Socket {
 
     private final SSLEngine engine;
 
-    private Deque<WriteFuture> handshakeWriteQueue = new ArrayDeque<>(32);
+    private final Deque<WriteFuture> handshakeWriteQueue = new ArrayDeque<>(32);
+    private final Deque<ReadFuture> handshakeReadQueue = new ArrayDeque<>();
+
+    private final ByteBuffer bufferedWrapped;
 
     SSLSocket(Origin origin, RunLoop runLoop, SSLEngine engine) {
         super(origin, runLoop);
         this.engine = engine;
         this.engine.setUseClientMode(true);
+        bufferedWrapped = ByteBuffer.allocate(engine.getSession().getPacketBufferSize());
     }
 
     @Override
@@ -39,59 +44,48 @@ final class SSLSocket extends Socket {
         }
     }
 
-    private List<ByteBuffer> wrap(ByteBuffer[] buffer) throws SSLException {
-        ArrayList<ByteBuffer> ret = new ArrayList<>();
+    private void wrapHandshake() throws SSLException {
+        ByteBuffer out = ByteBuffer.allocate(engine.getSession().getPacketBufferSize());
 
-        while (true) {
-            ByteBuffer out = ByteBuffer.allocate(engine.getSession().getPacketBufferSize());
+        SSLEngineResult result;
+        do {
+            result = engine.wrap(EMPTY_BUFFER_ARRAY, out);
 
-            SSLEngineResult result = engine.wrap(buffer, out);
-
-            if (out.remaining() > 0) {
+            if (result.bytesProduced() > 0) {
                 out.flip();
-                ret.add(out);
+                handshakeWriteQueue.add(new WriteFuture(new ByteBuffer[] { out }));
+                out = ByteBuffer.allocate(engine.getSession().getPacketBufferSize());
             }
 
             switch (result.getHandshakeStatus()) {
                 case FINISHED:
                     super.finishConnect();
-                    return ret;
+                    break;
                 case NEED_TASK:
                     runDelegatedTasks(engine);
                     break;
                 case NEED_UNWRAP:
                     readAndUnwrapHandshake();
-                    return ret;
+                    break;
                 case NEED_WRAP:
                 case NOT_HANDSHAKING:
                     break;
             }
-
-            if (result.bytesProduced() == 0) {
-                break;
-            }
-        }
-
-        return ret;
-    }
-
-    private void wrapHandshake() throws SSLException {
-        List<ByteBuffer> buffers = wrap(EMPTY_BUFFER_ARRAY);
-        if (!buffers.isEmpty()) {
-            ByteBuffer[] bb = new ByteBuffer[buffers.size()];
-            buffers.toArray(bb);
-
-            WriteFuture f = new WriteFuture(bb);
-            handshakeWriteQueue.add(f);
-        }
+        } while (result.bytesProduced() > 0);
     }
 
     private void unwrapHandshake(ByteBuffer wrappedBuf) throws SSLException {
 
         while (true) {
-            ByteBuffer unwrappedBuf = ByteBuffer.allocate(engine.getSession().getPacketBufferSize());
+            // TODO(bgallagher) buffer pooling
+            ByteBuffer to = ByteBuffer.allocate(engine.getSession().getPacketBufferSize());
 
-            SSLEngineResult result = engine.unwrap(wrappedBuf, unwrappedBuf);
+            bufferedWrapped.put(wrappedBuf);
+            bufferedWrapped.flip();
+
+            SSLEngineResult result = engine.unwrap(bufferedWrapped, to);
+
+            bufferedWrapped.compact();
 
             switch (result.getHandshakeStatus()) {
                 case NEED_UNWRAP:
@@ -104,6 +98,9 @@ final class SSLSocket extends Socket {
                     break;
                 case FINISHED:
                     super.finishConnect();
+                    if (bufferedWrapped.position() > 0) {
+                        onReadable();
+                    }
                     return;
                 case NOT_HANDSHAKING:
                     break;
@@ -114,32 +111,6 @@ final class SSLSocket extends Socket {
                 break;
             }
         }
-    }
-
-    private List<ByteBuffer> unwrap(ByteBuffer wrappedBuf) throws SSLException {
-        ArrayList<ByteBuffer> ret = new ArrayList<>();
-
-        while (true) {
-            ByteBuffer unwrappedBuf = ByteBuffer.allocate(engine.getSession().getPacketBufferSize());
-
-            SSLEngineResult result = engine.unwrap(wrappedBuf, unwrappedBuf);
-
-            unwrappedBuf.flip();
-
-            if (unwrappedBuf.hasRemaining()) {
-                ret.add(unwrappedBuf);
-            }
-
-            if (result.getHandshakeStatus() != SSLEngineResult.HandshakeStatus.NOT_HANDSHAKING) {
-                throw new SSLException("renegotiation not supported");
-            }
-
-            if (result.getStatus() == SSLEngineResult.Status.BUFFER_UNDERFLOW) {
-                break;
-            }
-        }
-
-        return ret;
     }
 
     private void readAndUnwrapHandshake() {
@@ -162,49 +133,37 @@ final class SSLSocket extends Socket {
 
             @Override
             public Executor getExecutor() {
-                return InlineExecutor.instance();
+                return Inline.INSTANCE;
             }
 
         });
+    }
+
+    private static void runDelegatedTasks(SSLEngine engine) {
+        Runnable task;
+        while ((task = engine.getDelegatedTask()) != null) {
+            task.run();
+        }
     }
 
     @Override
     ReadFuture read() {
-        final ReadFuture readFuture = new ReadFuture();
-
-        ReadFuture rawReadFuture = super.read();
-        rawReadFuture.addListener(new Listener<ByteBuffer>() {
-
-            @Override
-            public void onComplete(ByteBuffer result) {
-
-                List<ByteBuffer> unwrapped;
-                try {
-                    unwrapped = unwrap(result);
-                } catch (SSLException ssle) {
-                    readFuture.fail(ssle);
-                    return;
-                }
-
-                // TODO(bgallagher)
-                readFuture.set(unwrapped.get(0));
-            }
-
-            @Override
-            public void onError(Throwable throwable) {
-                readFuture.fail(throwable);
-
-            }
-
-            @Override
-            public Executor getExecutor() {
-                return InlineExecutor.instance();
-            }
-        });
-
-        return readFuture;
+        return read(new SSLReadFuture());
     }
 
+    @Override
+    WriteFuture write(ByteBuffer[] data) {
+        return write(new SSLWriteFuture(data));
+    }
+
+    @Override
+    Deque<ReadFuture> getReadQueue() {
+        if (engine.getHandshakeStatus() == SSLEngineResult.HandshakeStatus.NOT_HANDSHAKING) {
+            return super.getReadQueue();
+        } else {
+            return handshakeReadQueue;
+        }
+    }
     @Override
     Deque<WriteFuture> getWriteQueue() {
         if (engine.getHandshakeStatus() == SSLEngineResult.HandshakeStatus.NOT_HANDSHAKING) {
@@ -215,27 +174,82 @@ final class SSLSocket extends Socket {
     }
 
     @Override
-    void writeInternal(WriteFuture writeFuture) {
-        List<ByteBuffer> l;
-
-        try {
-            l = wrap(writeFuture.pending());
-        } catch (SSLException e) {
-            writeFuture.fail(e);
-            return;
-        }
-
-        ByteBuffer[] bb = new ByteBuffer[l.size()];
-        l.toArray(bb);
-        writeFuture.setPending(bb);
-        super.writeInternal(writeFuture);
+    void close() {
+        engine.closeOutbound();
+        super.close();
     }
 
-    private static void runDelegatedTasks(SSLEngine engine) {
-        Runnable task;
-        while ((task = engine.getDelegatedTask()) != null) {
-            task.run();
+    private final class SSLReadFuture extends ReadFuture {
+
+        @Override
+        boolean doRead(SocketChannel channel) throws IOException {
+
+            ByteBuffer out = getBuffer();
+
+            channel.read(bufferedWrapped);
+            bufferedWrapped.flip();
+
+            SSLEngineResult.Status status = SSLEngineResult.Status.OK;
+            while (out.remaining() > 0 && bufferedWrapped.remaining() > 0 && status ==
+                SSLEngineResult.Status.OK) {
+
+                SSLEngineResult result = engine.unwrap(bufferedWrapped, out);
+                status = result.getStatus();
+
+                if (result.getHandshakeStatus() != SSLEngineResult.HandshakeStatus.NOT_HANDSHAKING) {
+                    throw new SSLException("renegotiation not supported");
+                }
+
+            }
+
+            bufferedWrapped.compact();
+
+            out.flip();
+            set(out);
+            return true;
         }
     }
 
+    private final class SSLWriteFuture extends WriteFuture {
+
+        private boolean wrapped = false;
+
+        SSLWriteFuture(ByteBuffer[] data) {
+            super(data);
+        }
+
+        private void wrap() throws IOException {
+
+            ArrayList<ByteBuffer> wrapped = new ArrayList<>();
+
+            while (true) {
+                // TODO(bgallagher) buffer pooling
+                ByteBuffer out = ByteBuffer.allocate(engine.getSession().getPacketBufferSize());
+
+                SSLEngineResult result = engine.wrap(pending(), out);
+
+                if (result.getHandshakeStatus() != SSLEngineResult.HandshakeStatus.NOT_HANDSHAKING) {
+                    throw new SSLException("renegotiation not supported");
+                }
+
+                if (result.bytesProduced() > 0) {
+                    out.flip();
+                    wrapped.add(out);
+                } else {
+                    break;
+                }
+            }
+
+            setPending(wrapped.toArray(new ByteBuffer[wrapped.size()]));
+        }
+
+        boolean doWrite() throws IOException {
+            if (!wrapped) {
+                wrap();
+                wrapped = true;
+            }
+
+            return super.doWrite();
+        }
+    }
 }
