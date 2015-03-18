@@ -2,43 +2,42 @@ package com.twitter.internal.network.whiskey;
 
 import java.net.URL;
 
-public class Origin {
-    private String host;
-    private String protocol;
-    private String scheme;
-    private String originString;
-    private int port;
+public final class Origin {
+    private final String host;
+    private final String scheme;
+    private final String originString;
+    private final int port;
 
     public Origin(String scheme, String host) {
         this.scheme = scheme;
         this.host = host;
-
-        if (scheme.equals("https")) {
-            port = 443;
-        } else if (scheme.equals("http")) {
-            port = 80;
-        }
-        originString = scheme + "://" + host + ":" + port;
+        this.port = getPortForScheme(scheme);
+        this.originString = scheme + "://" + host + ":" + port;
     }
 
     public Origin(String scheme, String host, int port) {
         this.scheme = scheme;
         this.host = host;
-        this.port = port;
-        originString = scheme + "://" + host + ":" + port;
+        this.port = port == -1 ? getPortForScheme(scheme) : port;
+        this.originString = scheme + "://" + host + ":" + this.port;
     }
 
     public Origin(URL url) {
         this(url.getProtocol(), url.getHost(), url.getPort());
     }
 
+    private int getPortForScheme(String scheme) {
+        if (scheme.equals("https")) {
+            return 443;
+        } else if (scheme.equals("http")) {
+            return 80;
+        } else {
+            throw new AssertionError("unknown scheme: " + scheme);
+        }
+    }
 
     public String getHost() {
         return host;
-    }
-
-    public String getProtocol() {
-        return protocol;
     }
 
     public String getScheme() {
