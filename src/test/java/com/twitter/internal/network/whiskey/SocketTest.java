@@ -33,7 +33,7 @@ public class SocketTest {
 
     @Parameterized.Parameters
     public static Collection<Object[]> data() {
-        return Arrays.asList(new Object[][] { { false }, { true } });
+        return Arrays.asList(new Object[][] { { false } , { true } });
     }
     public SocketTest(boolean ssl) {
         this.ssl = ssl;
@@ -182,7 +182,7 @@ public class SocketTest {
 
         writeFuture.get();
     }
-/*
+
     @Test
     public void testManySmallWrites() throws Exception {
 
@@ -201,7 +201,29 @@ public class SocketTest {
             expectRead(socket, expected);
         }
     }
-*/
+
+    @Test
+    public void testClose() throws ExecutionException, InterruptedException {
+
+        echoServer.addTask(new EchoServer.Task() {
+            @Override
+            public void execute(ServerSocket serverSocket, java.net.Socket socket) throws IOException {
+                socket.close();
+            }
+        });
+
+        try {
+            Socket.ConnectFuture connectFuture = socket.connect();
+            connectFuture.get();
+
+            socket.read().get();
+        } catch (ExecutionException ee) {
+            Assert.assertTrue(ee.getCause() instanceof IOException);
+            IOException ioe = (IOException)ee.getCause();
+            Assert.assertEquals("connection closed", ioe.getMessage());
+        }
+    }
+
     private static ByteBuffer createTestMessage(int size) {
         byte[] randomData = new byte[size];
         Random random = new Random();

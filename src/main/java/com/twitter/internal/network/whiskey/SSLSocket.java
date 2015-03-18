@@ -35,16 +35,12 @@ final class SSLSocket extends Socket {
     }
 
     @Override
-    void finishConnect() {
+    void finishConnect() throws IOException {
         // writing an empty buffer will initiate a handshake
-        try {
-            wrapHandshake();
-        } catch (SSLException ssle) {
-            failConnect(ssle);
-        }
+        wrapHandshake();
     }
 
-    private void wrapHandshake() throws SSLException {
+    private void wrapHandshake() throws IOException {
         ByteBuffer out = ByteBuffer.allocate(engine.getSession().getPacketBufferSize());
 
         SSLEngineResult result;
@@ -74,7 +70,7 @@ final class SSLSocket extends Socket {
         } while (result.bytesProduced() > 0);
     }
 
-    private void unwrapHandshake(ByteBuffer wrappedBuf) throws SSLException {
+    private void unwrapHandshake(ByteBuffer wrappedBuf) throws IOException {
 
         while (true) {
             // TODO(bgallagher) buffer pooling
@@ -121,8 +117,8 @@ final class SSLSocket extends Socket {
             public void onComplete(ByteBuffer result) {
                 try {
                     unwrapHandshake(result);
-                } catch (SSLException ssle) {
-                    failConnect(ssle);
+                } catch (IOException ioe) {
+                    failConnect(ioe);
                 }
             }
 
@@ -186,7 +182,13 @@ final class SSLSocket extends Socket {
 
             ByteBuffer out = getBuffer();
 
-            channel.read(bufferedWrapped);
+            int bytesRead = channel.read(bufferedWrapped);
+
+            if (bytesRead < 0) {
+                fail(new IOException("connection closed"));
+                return true;
+            }
+
             bufferedWrapped.flip();
 
             SSLEngineResult.Status status = SSLEngineResult.Status.OK;

@@ -120,13 +120,15 @@ class Socket implements SelectableSocket {
         }
     }
 
-    void finishConnect() {
+    void finishConnect() throws IOException {
         connectFuture.set(origin);
         reregister();
     }
 
     void failConnect(Throwable thr) {
-        connectFuture.fail(thr);
+        if (!connectFuture.isDone()) {
+            connectFuture.fail(thr);
+        }
     }
 
     @Override
@@ -253,16 +255,16 @@ class Socket implements SelectableSocket {
 
             int bytesRead = channel.read(buffer);
 
-            // Shouldn't be possible if both headers and body data can be incrementally decoded
-            assert (bytesRead > 0 || buffer.position() < buffer.limit());
+            assert (bytesRead != 0);
 
             if (bytesRead > 0) {
                 buffer.flip();
                 set(buffer);
-                return true;
             } else {
-                return false;
+                fail(new IOException("connection closed"));
             }
+
+            return true;
         }
 
         @Override
