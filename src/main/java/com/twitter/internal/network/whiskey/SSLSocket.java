@@ -170,7 +170,7 @@ final class SSLSocket extends Socket {
     }
 
     @Override
-    void close() {
+    public void close() {
         engine.closeOutbound();
         super.close();
     }

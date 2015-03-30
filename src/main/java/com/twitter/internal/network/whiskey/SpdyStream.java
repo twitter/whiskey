@@ -1,6 +1,7 @@
 package com.twitter.internal.network.whiskey;
 
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.net.ProtocolException;
 import java.net.URL;
 import java.nio.ByteBuffer;
@@ -99,15 +100,16 @@ final class SpdyStream {
         closedRemotely = true;
     }
 
-    void closeSilently() {
-        closedLocally = true;
-        closedRemotely = true;
-    }
-
-    void close(IOException e) {
+    void close(Throwable e) {
         closedLocally = true;
         closedRemotely = true;
         operation.fail(e);
+    }
+
+    void complete() {
+        if (redirectMethod != null && redirectURL != null) {
+            redirect();
+        }
     }
 
     boolean isOpen() {
@@ -146,27 +148,43 @@ final class SpdyStream {
         sendWindow -= delta;
     }
 
-    void receivedHeader(Headers.Header header) throws ProtocolException {
+    void onReply() {
+        receivedReply = true;
+    }
+
+    void onHeader(Header header) throws IOException {
 
         if (INVALID_HEADERS.contains(header.getKey())) {
-            throw new ProtocolException("invalid header for SPDY response: " + header.getKey());
+            throw new SpdyProtocolException("invalid header for SPDY response: " + header.getKey());
         }
 
         switch(header.getKey()) {
             case ":status":
                 Integer status = Integer.valueOf(header.getValue());
-                receivedStatus(status);
+                onStatus(status);
+                break;
+            case "location":
+                try {
+                    Request currentRequest = operation.getCurrentRequest();
+                    redirectURL = new URL(currentRequest.getUrl(), header.getValue());
+                } catch (MalformedURLException e) {
+                    throw new IOException(
+                        "Malformed URL received for redirect: " + header.getValue(), e);
+                }
+                break;
         }
+
+        operation.getHeadersFuture().provide(header);
     }
 
-    void receivedData(ByteBuffer data, boolean last) {
+    void onData(ByteBuffer data, boolean last) {
         // TODO: decompress compressed bodies
         if (!compressed) {
-            operation.getBodyFuture().provide(data, last);
+            operation.getBodyFuture().provide(data);
         }
     }
 
-    void receivedStatus(int statusCode) throws ProtocolException {
+    void onStatus(int statusCode) throws IOException {
 
         if (finalResponse) {
             throw new ProtocolException("unexpected second response status received: " + statusCode);
@@ -185,7 +203,7 @@ final class SpdyStream {
                 if (currentMethod == Request.Method.GET || currentMethod == Request.Method.HEAD) {
                     redirectMethod = currentMethod;
                 } else {
-                    finalizeResponse();
+                    setFinalResponse();
                 }
             } else if (statusCode == 302 || statusCode == 303) {
             /*
@@ -195,23 +213,32 @@ final class SpdyStream {
              */
                 redirectMethod = Request.Method.GET;
             }
-
-            if (redirectMethod != null && redirectURL != null) {
-                closeSilently();
-                Request redirect = new RequestBuilder(currentRequest)
-                    .method(redirectMethod)
-                    .url(redirectURL)
-                    .body()
-                    .create();
-                operation.redirect(redirect);
-            }
         } else if (statusCode != 100) {
-            finalizeResponse();
+            setFinalResponse();
         }
     }
 
-    private void finalizeResponse() {
+    private void redirect() {
+        Request redirect = new RequestBuilder(operation.getCurrentRequest())
+            .method(redirectMethod)
+            .url(redirectURL)
+            .body()
+            .create();
+        operation.redirect(redirect);
+    }
+
+    private boolean retry() {
+        if (receivedReply || !local) return false;
+        operation.retry();
+        return true;
+    }
+
+    /**
+     * The incoming response is the one to pass on to the client: no more
+     * redirects will be followed and retry behavior is disallowed.
+     */
+    private void setFinalResponse() {
         finalResponse = true;
-        //operation.getHeadersFuture().release();
+        operation.getHeadersFuture().release();
     }
 }

@@ -19,7 +19,7 @@ class CompletableFuture<T> implements ListenableFuture<T> {
     CompletableFuture() {
     }
 
-    boolean set(final T result) throws RuntimeException {
+    boolean set(final T result) {
 
         if (done) {
             if (cancelled) {

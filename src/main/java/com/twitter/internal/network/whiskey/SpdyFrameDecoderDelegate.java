@@ -33,7 +33,7 @@ public interface SpdyFrameDecoderDelegate {
      * The Name/Value Header Block is not included. See readHeaderBlock().
      */
     void readSynStreamFrame(
-            int streamId, int associatedToStreamId, byte priority, boolean last, boolean unidirectional);
+        int streamId, int associatedToStreamId, byte priority, boolean last, boolean unidirectional);
 
     /**
      * Called when a SYN_REPLY frame is received.
@@ -78,20 +78,27 @@ public interface SpdyFrameDecoderDelegate {
      */
     void readHeadersFrame(int streamId, boolean last);
 
+    /*
+     * Repeatedly called during the decoding of a header block from a
+     * SYN_STREAM, SYN_REPLY, or HEADERS frame.
+     */
+    void readHeader(int streamId, Header header);
+
+    /**
+     * Called when the entire header block has been receieved and decoded.
+     */
+    void readHeadersEnd(int streamId);
+
     /**
      * Called when a WINDOW_UPDATE frame is received.
      */
     void readWindowUpdateFrame(int streamId, int deltaWindowSize);
 
     /**
-     * Called when the header block within a SYN_STREAM, SYN_REPLY, or HEADERS frame is received.
+     * Called when a frame this implementation is unable to handle is received,
+     * but other streams on the session may still be valid.
      */
-    void readHeaderBlock(ByteBuffer headerBlock);
-
-    /**
-     * Called when an entire header block has been received.
-     */
-    void readHeaderBlockEnd();
+    void readFrameSkipped(int streamId, String message);
 
     /**
      * Called when an unrecoverable session error has occurred.

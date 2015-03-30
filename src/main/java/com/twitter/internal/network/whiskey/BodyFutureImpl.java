@@ -44,7 +44,7 @@ class BodyFutureImpl extends ReactiveFuture<ByteBuffer, ByteBuffer> implements B
     }
 
     @Override
-    void complete() {
-        set(body);
+    boolean complete() {
+        return set(body);
     }
 }

@@ -23,7 +23,7 @@ class RunLoop implements Executor {
     private static final RunLoop INSTANCE = new RunLoop();
 
     private final ConcurrentLinkedQueue<Runnable> tasks = new ConcurrentLinkedQueue<>();
-    private final PriorityBlockingQueue<ScheduledRunnable> scheduledTasks = new PriorityBlockingQueue<>(1, ScheduledRunnable.Comparator());;
+    private final PriorityBlockingQueue<ScheduledRunnable> scheduledTasks = new PriorityBlockingQueue<>(1, ScheduledRunnable.Comparator());
     private final Selector selector;
     private final RunLoopThread thread = new RunLoopThread();
 
@@ -93,7 +93,6 @@ class RunLoop implements Executor {
      * Registers socket events to be handled on the internal RunLoopThread. This method is
      * unsynchronized, and may block if not called from the internal RunLoopThread.
      */
-     // TODO: provide selectionkey to socket on cancelation for close?
     @SuppressWarnings("ResourceType")
     void register(int interestSet, SelectableSocket socket) {
         if (interestSet == 0) {
@@ -103,8 +102,9 @@ class RunLoop implements Executor {
         try {
             SelectionKey key = socket.getChannel().register(selector, interestSet);
             key.attach(socket);
+            socket.setSelectionKey(key);
         } catch(ClosedChannelException e) {
-            socket.onClose();
+            socket.onClose(e);
         }
     }
 

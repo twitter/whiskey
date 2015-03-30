@@ -37,10 +37,16 @@ class RequestOperation extends CompletableFuture<Response> implements ResponseFu
 
         currentRequest = request;
         remainingRedirects--;
-        assert remainingRedirects > 0;
-        assert !headersFuture.isDone();
-        assert !bodyFuture.isDone();
-        assert !statsFuture.isDone();
+        assert remainingRedirects >= 0 && !headersFuture.isDone()
+            && !bodyFuture.isDone() && !statsFuture.isDone();
+        client.queue(this);
+    }
+
+    void retry() {
+
+        remainingRetries--;
+        assert remainingRetries >= 0 && !headersFuture.isDone()
+            && !bodyFuture.isDone() && !statsFuture.isDone();
         client.queue(this);
     }
 
@@ -71,8 +77,12 @@ class RequestOperation extends CompletableFuture<Response> implements ResponseFu
         stats.durationMs = PlatformAdapter.instance().timestamp() - startMs;
     }
 
-    public int getRemainingRedirects() {
+    int getRemainingRedirects() {
         return remainingRedirects;
+    }
+
+    int getRemainingRetries() {
+        return remainingRetries;
     }
 
     @Override

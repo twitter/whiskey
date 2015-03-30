@@ -3,7 +3,7 @@ package com.twitter.internal.network.whiskey;
 /**
  * @author Michael Schore
  */
-public class HeadersFutureImpl extends ReactiveFuture<Headers, Headers.Header> implements HeadersFuture {
+public class HeadersFutureImpl extends ReactiveFuture<Headers, Header> implements HeadersFuture {
 
     private Headers headers;
 
@@ -12,7 +12,7 @@ public class HeadersFutureImpl extends ReactiveFuture<Headers, Headers.Header> i
     }
 
     @Override
-    void accumulate(Headers.Header element) {
+    void accumulate(Header element) {
 
         if (headers == null) {
             headers = new Headers();
@@ -21,12 +21,12 @@ public class HeadersFutureImpl extends ReactiveFuture<Headers, Headers.Header> i
     }
 
     @Override
-    Iterable<Headers.Header> drain() {
-        return headers.collection();
+    Iterable<Header> drain() {
+        return headers.entries();
     }
 
     @Override
-    void complete() {
-        set(headers);
+    boolean complete() {
+        return set(headers);
     }
 }

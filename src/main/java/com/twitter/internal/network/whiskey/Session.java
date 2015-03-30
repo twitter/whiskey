@@ -54,4 +54,9 @@ interface Session {
      * Queue a {@link RequestOperation} to be handled by the session.
      */
     void queue(RequestOperation operation);
+
+    CloseFuture getCloseFuture();
+
+    interface CloseFuture extends ListenableFuture<Session> {
+    }
 }

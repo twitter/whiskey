@@ -19,8 +19,10 @@ class Socket implements SelectableSocket {
     private boolean closed = false;
 
     private SocketChannel channel;
+    private SelectionKey key;
 
     private ConnectFuture connectFuture;
+    private CloseFuture closeFuture;
     private Deque<ReadFuture> readQueue = new ArrayDeque<>(1);
     private Deque<WriteFuture> writeQueue = new ArrayDeque<>(32);
 
@@ -49,6 +51,10 @@ class Socket implements SelectableSocket {
         return connectFuture;
     }
 
+    CloseFuture getCloseFuture() {
+        return closeFuture;
+    }
+
     ReadFuture read() {
         return read(new ReadFuture());
     }
@@ -65,6 +71,11 @@ class Socket implements SelectableSocket {
         });
 
         return readFuture;
+    }
+
+    ReadFuture read(ByteBuffer readBuffer) {
+        // TODO: resolve this
+        return read();
     }
 
     ReadFuture read(int timeout, TimeUnit timeoutUnit) {
@@ -121,6 +132,7 @@ class Socket implements SelectableSocket {
     }
 
     void finishConnect() throws IOException {
+        closeFuture = new CloseFuture();
         connectFuture.set(origin);
         reregister();
     }
@@ -204,8 +216,13 @@ class Socket implements SelectableSocket {
         return channel;
     }
 
+    @Override
+    public void setSelectionKey(SelectionKey key) {
+        this.key = key;
+    }
+
     public boolean isConnected() {
-        return channel != null && channel.isConnected();
+        return !closed && channel != null && channel.isConnected();
     }
 
     private int interestSet() {
@@ -218,22 +235,38 @@ class Socket implements SelectableSocket {
     }
 
     @Override
-    public void onClose() {
-        close();
+    public void onClose(Throwable e) {
+
+        if (closed) return;
+        closed = true;
+        key = null;
+        closeFuture.fail(e);
     }
 
     boolean isSecure() {
         return false;
     }
 
-    void close(Throwable e) {
+    private void close(Throwable e) {
+
         if (closed) return;
         closed = true;
+        if (key != null) key.cancel();
+        closeFuture.fail(e);
     }
 
-    void close() {
+    public void close() {
+
         if (closed) return;
         closed = true;
+        if (key != null) key.cancel();
+
+        try {
+            channel.close();
+        } catch (IOException ignored) {
+        }
+
+        closeFuture.set(origin);
     }
 
     public Request.Protocol getProtocol() {
@@ -241,6 +274,9 @@ class Socket implements SelectableSocket {
     }
 
     class ConnectFuture extends CompletableFuture<Origin> {
+    }
+
+    class CloseFuture extends CompletableFuture<Origin> {
     }
 
     class ReadFuture extends CompletableFuture<ByteBuffer> {
@@ -301,7 +337,8 @@ class Socket implements SelectableSocket {
 
             ByteBuffer finalData = data[data.length - 1];
             boolean writeComplete = finalData.position() == finalData.limit();
-            provide(bytesWritten, writeComplete);
+            provide(bytesWritten);
+            if (writeComplete) finish();
             return writeComplete;
         }
 
@@ -317,8 +354,8 @@ class Socket implements SelectableSocket {
         }
 
         @Override
-        void complete() {
-            set(totalBytesWritten);
+        boolean complete() {
+            return set(totalBytesWritten);
         }
 
         @Override

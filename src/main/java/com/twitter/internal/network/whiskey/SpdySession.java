@@ -1,27 +1,31 @@
 package com.twitter.internal.network.whiskey;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.Executor;
 
 import static com.twitter.internal.network.whiskey.SpdyConstants.*;
 
 class SpdySession implements Session, SpdyFrameDecoderDelegate {
 
-    private static final Map<Origin, Map<Integer, Integer>> storedSettings = new HashMap<>();
+    private static final Map<Origin, SpdySettings> storedSettings = new HashMap<>();
+    private static final int DEFAULT_BUFFER_SIZE = 65536;
 
     private final Origin origin;
     private final ClientConfiguration configuration;
+    private final SessionCloseFuture sessionCloseFuture;
     private final SessionManager manager;
     private final SpdyFrameDecoder frameDecoder;
     private final SpdyFrameEncoder frameEncoder;
     private final SpdyStreamManager activeStreams = new SpdyStreamManager();
-    private final SpdyStreamManager pendingStreams = new SpdyStreamManager();
     private final Socket socket;
 
     private ByteBuffer inputBuffer;
-    private Map<Long, Long> sentPingMap = new HashMap<>(3);
+    private Map<Integer, Long> sentPingMap = new TreeMap<>();
     private int lastGoodStreamId = 0;
     private int nextStreamId = 1;
     private int nextPingId = 1;
@@ -50,12 +54,17 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
         sessionReceiveWindow = configuration.getSessionReceiveWindow();
         localMaxConcurrentStreams = configuration.getMaxPushStreams();
 
+        sessionCloseFuture = new SessionCloseFuture();
+        socket.getCloseFuture().addListener(new SocketCloseListener());
         sendClientSettings();
         sendPing();
 
         int windowDelta = sessionReceiveWindow - DEFAULT_INITIAL_WINDOW_SIZE;
         sendWindowUpdate(SPDY_SESSION_STREAM_ID, windowDelta);
         manager.poll(this, getCapacity());
+
+        inputBuffer = ByteBuffer.allocate(DEFAULT_BUFFER_SIZE);
+        socket.read(inputBuffer).addListener(new SocketReadListener());
     }
 
     @Override
@@ -103,6 +112,11 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
 
         SpdyStream stream = new SpdyStream(operation);
         stream.open(nextStreamId, initialSendWindow, configuration.getStreamReceiveWindow());
+    }
+
+    @Override
+    public CloseFuture getCloseFuture() {
+        return sessionCloseFuture;
     }
 
     /* SpdyFrameDecoderDelegate */
@@ -191,7 +205,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
             sendWindowUpdate(streamId, deltaWindowSize);
         }
 
-        stream.receivedData(data, last);
+        stream.onData(data, last);
 
         if (last) {
             stream.closeRemotely();
@@ -258,12 +272,11 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
         }
 
         active = true;
+        stream.onReply();
 
         if (last) {
             stream.closeRemotely();
-            if (stream.isClosed()) {
-                activeStreams.remove(stream);
-            }
+            // Defer removing stream from activeStreams until we receive headersEnd
         }
     }
 
@@ -282,13 +295,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
 
         if (stream != null) {
             activeStreams.remove(stream);
-
-            if (statusCode == SPDY_STREAM_REFUSED_STREAM && stream.reset()) {
-                // TODO: requeue
-//                requeue(stream);
-            }
-
-            stream.close(new SpdyStreamException("stream refused: " + statusCode));
+            stream.close(new SpdyStreamException(statusCode));
         }
     }
 
@@ -319,7 +326,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
         int delta;
         switch(id) {
 
-            case SpdyCodecUtil.SETTINGS_MAX_CONCURRENT_STREAMS:
+            case SpdySettings.MAX_CONCURRENT_STREAMS:
                 delta = value - remoteMaxConcurrentStreams;
                 remoteMaxConcurrentStreams = value;
                 if (delta > 0) {
@@ -327,7 +334,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
                 }
                 break;
 
-            case SpdyCodecUtil.SETTINGS_INITIAL_WINDOW_SIZE:
+            case SpdySettings.INITIAL_WINDOW_SIZE:
                 delta = value - initialSendWindow;
                 for (SpdyStream stream : activeStreams) {
                     if (!stream.isClosedLocally()) {
@@ -343,12 +350,12 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
         }
 
         if (persistValue) {
-            Map<Integer, Integer> settings = storedSettings.get(origin);
+            SpdySettings settings = storedSettings.get(origin);
             if (settings == null) {
-                settings = new HashMap<>();
+                settings = new SpdySettings();
                 storedSettings.put(origin, settings);
             }
-            settings.put(id, value);
+            settings.setValue(id, value);
         }
     }
 
@@ -385,25 +392,10 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
 
         receivedGoAwayFrame = true;
 
-        String message;
-        if (statusCode == SPDY_SESSION_OK) {
-            message = "SpdySession closing gracefully";
-        } else if (statusCode == SPDY_SESSION_PROTOCOL_ERROR) {
-            message = "SpdySession closed: protocol error";
-        } else if (statusCode == SPDY_SESSION_INTERNAL_ERROR) {
-            message = "SpdySession closed: internal error";
-        } else {
-            message = "SpdySession closed: unknown error";
-        }
-
         for (SpdyStream stream : activeStreams) {
             if (stream.isLocal() && stream.getStreamId() > lastGoodStreamId) {
-                // TODO: implement once stream/RO/RF interaction is stable
-                if (stream.reset()) {
-                    manager.queue(null);
-                } else {
-                    stream.close(new SpdySessionException(message));
-                }
+                stream.close(new SpdySessionException(statusCode));
+                activeStreams.remove(stream);
             }
         }
     }
@@ -456,8 +448,8 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
         // Check for numerical overflow
         if (stream.getSendWindow() > Integer.MAX_VALUE - deltaWindowSize) {
             sendRstStream(streamId, SPDY_STREAM_FLOW_CONTROL_ERROR);
-            stream.close(new SpdyStreamException("flow control error"));
             activeStreams.remove(stream);
+            stream.close(new SpdyStreamException("flow control error"));
         }
 
         stream.increaseSendWindow(deltaWindowSize);
@@ -465,12 +457,32 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
     }
 
     @Override
-    public void readHeaderBlock(ByteBuffer headerBlock) {
+    public void readHeader(int streamId, Header header) {
 
+        SpdyStream stream = activeStreams.get(streamId);
+        assert(stream != null); // Should have been caught when frame was decoded
+
+        try {
+            stream.onHeader(header);
+        } catch (IOException e) {
+            activeStreams.remove(stream);
+            stream.close(e);
+        }
     }
 
     @Override
-    public void readHeaderBlockEnd() {
+    public void readHeadersEnd(int streamId) {
+
+        SpdyStream stream = activeStreams.get(streamId);
+        assert(stream != null); // Should have been caught when frame was decoded
+
+        if (stream.isClosed()) {
+            activeStreams.remove(stream);
+        }
+    }
+
+    @Override
+    public void readFrameSkipped(int streamId, String message) {
 
     }
 
@@ -480,11 +492,10 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
     }
 
     public void sendRstStream(int streamId, int streamStatus) {
-
+        socket.write(frameEncoder.encodeRstStreamFrame(streamId, streamStatus));
     }
 
     public void sendWindowUpdate(int streamId, int delta) {
-
         socket.write(frameEncoder.encodeWindowUpdateFrame(streamId, delta));
     }
 
@@ -493,18 +504,22 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
     }
 
     private void sendClientSettings() {
-        SpdySettingsFrame settingsFrame = new SpdySettingsFrame();
-        settingsFrame.setValue(SpdyCodecUtil.SETTINGS_INITIAL_WINDOW_SIZE, initialReceiveWindow);
+        SpdySettings settings = new SpdySettings();
+        settings.setValue(SpdySettings.INITIAL_WINDOW_SIZE, initialReceiveWindow);
+        socket.write(frameEncoder.encodeSettingsFrame(settings));
     }
 
     private void sendPing() {
 
-        Socket.WriteFuture pingFuture = socket.write(frameEncoder.encodePingFrame(nextPingId));
+        final int pingId = nextPingId;
         nextPingId += 2;
+
+        Socket.WriteFuture pingFuture = socket.write(frameEncoder.encodePingFrame(pingId));
+
         pingFuture.addListener(new Listener<Long>() {
             @Override
             public void onComplete(Long result) {
-                // TODO: record ping out
+                sentPingMap.put(pingId, PlatformAdapter.instance().timestamp());
             }
 
             @Override
@@ -524,5 +539,84 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
 
     public void closeWithStatus(int sessionStatus) {
 
+    }
+
+    private class SocketReadListener implements Listener<ByteBuffer> {
+
+        @Override
+        public void onComplete(ByteBuffer result) {
+            frameDecoder.decode(result);
+            result.compact();
+            socket.read(result).addListener(new SocketReadListener());
+        }
+
+        @Override
+        public void onError(Throwable throwable) {
+        }
+
+        @Override
+        public Executor getExecutor() {
+            return Inline.INSTANCE;
+        }
+    }
+
+    private class SocketWriteLogger implements Listener<Long> {
+        String message;
+
+        SocketWriteLogger(final String message) {
+            this.message = message;
+        }
+
+        @Override
+        public void onComplete(Long result) {
+            // TODO: simple platform-specific logging
+//            WhiskeyLog.d(message);
+        }
+
+        @Override
+        public void onError(Throwable throwable) {
+        }
+
+        @Override
+        public Executor getExecutor() {
+            return Inline.INSTANCE;
+        }
+    }
+
+    private class SocketCloseListener implements Listener<Origin> {
+
+        /**
+         * Occurs when the client has initiated the connection closure.
+         */
+        @Override
+        public void onComplete(Origin result) {
+            // We should never attempt to close the socket if there are active streams.
+            assert activeStreams.size() == 0;
+            sessionCloseFuture.set(SpdySession.this);
+        }
+
+        /**
+         * Occurs when the connection closes unexpectedly.
+         * @param throwable the cause of the connection closure
+         */
+        @Override
+        public void onError(Throwable throwable) {
+
+            Iterator<SpdyStream> i = activeStreams.iterator();
+            while (i.hasNext()) {
+                SpdyStream stream = i.next();
+                stream.close(throwable);
+                i.remove();
+            }
+            sessionCloseFuture.fail(throwable);
+        }
+
+        @Override
+        public Executor getExecutor() {
+            return Inline.INSTANCE;
+        }
+    }
+
+    class SessionCloseFuture extends CompletableFuture<Session> implements Session.CloseFuture {
     }
 }

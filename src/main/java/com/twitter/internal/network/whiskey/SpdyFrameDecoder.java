@@ -47,10 +47,10 @@ import static com.twitter.internal.network.whiskey.SpdyCodecUtil.getUnsignedShor
  */
 public class SpdyFrameDecoder {
 
+    private final SpdyFrameDecoderDelegate delegate;
+    private final SpdyHeaderBlockDecoder headerBlockDecoder;
     private final int spdyVersion;
     private final int maxChunkSize;
-
-    private final SpdyFrameDecoderDelegate delegate;
 
     private State state;
 
@@ -100,6 +100,7 @@ public class SpdyFrameDecoder {
             throw new IllegalArgumentException(
                     "maxChunkSize must be a positive integer: " + maxChunkSize);
         }
+        this.headerBlockDecoder = new SpdyHeaderBlockZlibDecoder(spdyVersion, delegate, 4096);
         this.spdyVersion = spdyVersion.getVersion();
         this.delegate = delegate;
         this.maxChunkSize = maxChunkSize;
@@ -342,7 +343,7 @@ public class SpdyFrameDecoder {
                 case READ_HEADER_BLOCK:
                     if (length == 0) {
                         state = State.READ_COMMON_HEADER;
-                        delegate.readHeaderBlockEnd();
+                        headerBlockDecoder.endHeaderBlock();
                         break;
                     }
 
@@ -350,12 +351,20 @@ public class SpdyFrameDecoder {
                         return;
                     }
 
-                    int compressedBytes = Math.min(buffer.remaining(), length);
-                    ByteBuffer headerBlock = ByteBuffer.allocate(compressedBytes);
-                    headerBlock.put(buffer);
-                    length -= compressedBytes;
+                    int headerBytes = Math.min(buffer.remaining(), length);
 
-                    delegate.readHeaderBlock(headerBlock);
+                    ByteBuffer headerBlock = buffer.slice();
+                    headerBlock.limit(headerBytes);
+
+                    try {
+                        headerBlockDecoder.decode(headerBlock, streamId);
+                    } catch (Exception e) {
+                        state = State.FRAME_ERROR;
+                    }
+
+                    int bytesRead = headerBytes - headerBlock.remaining();
+                    buffer.position(buffer.position() + bytesRead);
+                    length -= bytesRead;
                     break;
 
                 case DISCARD_FRAME:

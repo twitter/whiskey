@@ -23,17 +23,17 @@ import java.util.TreeMap;
 /**
  * A SPDY Protocol SETTINGS Frame
  */
-class SpdySettingsFrame implements SpdyFrame {
+class SpdySettings {
 
-    int SETTINGS_MINOR_VERSION                  = 0;
-    int SETTINGS_UPLOAD_BANDWIDTH               = 1;
-    int SETTINGS_DOWNLOAD_BANDWIDTH             = 2;
-    int SETTINGS_ROUND_TRIP_TIME                = 3;
-    int SETTINGS_MAX_CONCURRENT_STREAMS         = 4;
-    int SETTINGS_CURRENT_CWND                   = 5;
-    int SETTINGS_DOWNLOAD_RETRANS_RATE          = 6;
-    int SETTINGS_INITIAL_WINDOW_SIZE            = 7;
-    int SETTINGS_CLIENT_CERTIFICATE_VECTOR_SIZE = 8;
+    static final int MINOR_VERSION                  = 0;
+    static final int UPLOAD_BANDWIDTH               = 1;
+    static final int DOWNLOAD_BANDWIDTH             = 2;
+    static final int ROUND_TRIP_TIME                = 3;
+    static final int MAX_CONCURRENT_STREAMS         = 4;
+    static final int CURRENT_CWND                   = 5;
+    static final int DOWNLOAD_RETRANS_RATE          = 6;
+    static final int INITIAL_WINDOW_SIZE            = 7;
+    static final int CLIENT_CERTIFICATE_VECTOR_SIZE = 8;
 
     private boolean clear;
     private final Map<Integer, Setting> settingsMap = new TreeMap<Integer, Setting>();
@@ -54,11 +54,11 @@ class SpdySettingsFrame implements SpdyFrame {
         }
     }
 
-    public SpdySettingsFrame setValue(int id, int value) {
+    public SpdySettings setValue(int id, int value) {
         return setValue(id, value, false, false);
     }
 
-    public SpdySettingsFrame setValue(int id, int value, boolean persistValue, boolean persisted) {
+    public SpdySettings setValue(int id, int value, boolean persistValue, boolean persisted) {
         if (id < 0 || id > SpdyCodecUtil.SPDY_SETTINGS_MAX_ID) {
             throw new IllegalArgumentException("Setting ID is not valid: " + id);
         }
@@ -73,7 +73,7 @@ class SpdySettingsFrame implements SpdyFrame {
         return this;
     }
 
-    public SpdySettingsFrame removeValue(int id) {
+    public SpdySettings removeValue(int id) {
         if (settingsMap.containsKey(id)) {
             settingsMap.remove(id);
         }
@@ -84,7 +84,7 @@ class SpdySettingsFrame implements SpdyFrame {
         return settingsMap.containsKey(id) && settingsMap.get(id).isPersist();
     }
 
-    public SpdySettingsFrame setPersistValue(int id, boolean persistValue) {
+    public SpdySettings setPersistValue(int id, boolean persistValue) {
         if (settingsMap.containsKey(id)) {
             settingsMap.get(id).setPersist(persistValue);
         }
@@ -95,7 +95,7 @@ class SpdySettingsFrame implements SpdyFrame {
         return settingsMap.containsKey(id) && settingsMap.get(id).isPersisted();
     }
 
-    public SpdySettingsFrame setPersisted(int id, boolean persisted) {
+    public SpdySettings setPersisted(int id, boolean persisted) {
         if (settingsMap.containsKey(id)) {
             settingsMap.get(id).setPersisted(persisted);
         }
@@ -106,7 +106,7 @@ class SpdySettingsFrame implements SpdyFrame {
         return clear;
     }
 
-    public SpdySettingsFrame setClearPreviouslyPersistedSettings(boolean clear) {
+    public SpdySettings setClearPreviouslyPersistedSettings(boolean clear) {
         this.clear = clear;
         return this;
     }

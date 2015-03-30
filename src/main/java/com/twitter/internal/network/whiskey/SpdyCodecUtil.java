@@ -42,16 +42,6 @@ final class SpdyCodecUtil {
     static final int SPDY_HEADERS_FRAME       = 8;
     static final int SPDY_WINDOW_UPDATE_FRAME = 9;
 
-    static final int SETTINGS_MINOR_VERSION                  = 0;
-    static final int SETTINGS_UPLOAD_BANDWIDTH               = 1;
-    static final int SETTINGS_DOWNLOAD_BANDWIDTH             = 2;
-    static final int SETTINGS_ROUND_TRIP_TIME                = 3;
-    static final int SETTINGS_MAX_CONCURRENT_STREAMS         = 4;
-    static final int SETTINGS_CURRENT_CWND                   = 5;
-    static final int SETTINGS_DOWNLOAD_RETRANS_RATE          = 6;
-    static final int SETTINGS_INITIAL_WINDOW_SIZE            = 7;
-    static final int SETTINGS_CLIENT_CERTIFICATE_VECTOR_SIZE = 8;
-
     static final byte SPDY_FLAG_FIN            = 0x01;
     static final byte SPDY_FLAG_UNIDIRECTIONAL = 0x02;
 
@@ -297,6 +287,26 @@ final class SpdyCodecUtil {
      */
     static int getUnsignedInt(ByteBuffer buffer) {
         return (buffer.get() & 0x7F) << 24 |
+               (buffer.get() & 0xFF) << 16 |
+               (buffer.get() & 0xFF) <<  8 |
+                buffer.get() & 0xFF;
+    }
+
+    /**
+     * Reads a big-endian signed integer from the buffer and advances position.
+     */
+    static int getSignedInt(ByteBuffer buffer, int offset) {
+        return (buffer.get(offset)     & 0xFF) << 24 |
+               (buffer.get(offset + 1) & 0xFF) << 16 |
+               (buffer.get(offset + 2) & 0xFF) <<  8 |
+                buffer.get(offset + 3) & 0xFF;
+    }
+
+    /**
+     * Reads a big-endian signed integer from the buffer and advances position.
+     */
+    static int getSignedInt(ByteBuffer buffer) {
+        return (buffer.get() & 0xFF) << 24 |
                (buffer.get() & 0xFF) << 16 |
                (buffer.get() & 0xFF) <<  8 |
                 buffer.get() & 0xFF;

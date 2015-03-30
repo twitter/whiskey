@@ -103,11 +103,11 @@ class SpdyFrameEncoder {
         return frame;
     }
 
-    public ByteBuffer encodeSettingsFrame(SpdySettingsFrame spdySettingsFrame) {
-        Set<Integer> ids = spdySettingsFrame.ids();
+    public ByteBuffer encodeSettingsFrame(SpdySettings spdySettings) {
+        Set<Integer> ids = spdySettings.ids();
         int numSettings = ids.size();
 
-        byte flags = spdySettingsFrame.clearPreviouslyPersistedSettings() ?
+        byte flags = spdySettings.clearPreviouslyPersistedSettings() ?
                 SPDY_SETTINGS_CLEAR : 0;
         int length = 4 + 8 * numSettings;
         ByteBuffer frame = ByteBuffer.allocateDirect(SPDY_HEADER_SIZE + length).order(ByteOrder.BIG_ENDIAN);
@@ -115,15 +115,15 @@ class SpdyFrameEncoder {
         frame.putInt(numSettings);
         for (Integer id : ids) {
             flags = 0;
-            if (spdySettingsFrame.isPersistValue(id)) {
+            if (spdySettings.isPersistValue(id)) {
                 flags |= SPDY_SETTINGS_PERSIST_VALUE;
             }
-            if (spdySettingsFrame.isPersisted(id)) {
+            if (spdySettings.isPersisted(id)) {
                 flags |= SPDY_SETTINGS_PERSISTED;
             }
             frame.put(flags);
             writeMedium(frame, id);
-            frame.putInt(spdySettingsFrame.getValue(id));
+            frame.putInt(spdySettings.getValue(id));
         }
         return frame;
     }

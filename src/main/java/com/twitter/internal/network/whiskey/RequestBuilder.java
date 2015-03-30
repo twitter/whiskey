@@ -6,7 +6,6 @@ import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -69,23 +68,34 @@ public class RequestBuilder {
         return this;
     }
 
-    public RequestBuilder headers(Collection<Headers.Header> headers) {
+    public RequestBuilder headers(Collection<Header> headers) {
         this.headers = new Headers(headers);
+        this.headers.addAll(headers);
+        this.headers.entries().addAll(headers);
         return this;
     }
 
-    public RequestBuilder headers(Map<String, List<String>> headers) {
-        this.headers = new Headers(headers);
-        return this;
-    }
-
-    public RequestBuilder header(Headers.Header header) {
+    public RequestBuilder addHeader(Header header) {
+        if (headers == null) headers = new Headers();
         this.headers.add(header);
         return this;
     }
 
-    public RequestBuilder header(String name, String value) {
-        this.headers.add(name, value);
+    public RequestBuilder addHeader(String name, String value) {
+        if (headers == null) headers = new Headers();
+        this.headers.put(name, value);
+        return this;
+    }
+
+    public RequestBuilder addHeaders(Headers headers) {
+        if (this.headers == null) this.headers = new Headers();
+        this.headers.putAll(headers);
+        return this;
+    }
+
+    public RequestBuilder addHeaders(Collection<Header> headers) {
+        if (this.headers == null) this.headers = new Headers();
+        this.headers.addAll(headers);
         return this;
     }
 

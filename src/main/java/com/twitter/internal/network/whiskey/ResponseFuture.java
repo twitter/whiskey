@@ -22,7 +22,7 @@ public interface ResponseFuture extends ListenableFuture<Response> {
     /**
      * @return a future representation of the final response's headers
      */
-    public ObservableFuture<Headers, Headers.Header> getHeadersFuture();
+    public HeadersFuture getHeadersFuture();
 
     /**
      * @return a future representation of the final response's body
