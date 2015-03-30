@@ -4,37 +4,37 @@ import java.nio.channels.SelectableChannel;
 import java.nio.channels.SelectionKey;
 
 /**
- * Provides notification of Socket state changes.
+ * Interface used by {@link RunLoop} to notify socket implementations of state changes.
  */
-interface SelectableSocket {
+abstract class SelectableSocket {
 
     /**
-     * Called when the Socket has either finished or has failed to finish connecting.
+     * Called when the socket has either finished or has failed to finish connecting.
      */
-    public void onConnect();
+    abstract void onConnect();
 
     /**
-     * Called when the Socket is ready for reading
+     * Called when the socket is ready for reading
      */
-    public void onReadable();
+    abstract void onReadable();
 
     /**
-     * Called when the Socket is ready for writing
+     * Called when the socket is ready for writing
      */
-    public void onWriteable();
+    abstract void onWriteable();
 
     /**
-     * Called when the Socket has been closed
+     * Called when the socket has been closed
      */
-    public void onClose(Throwable e);
+    abstract void onClose(Throwable e);
 
     /**
-     * @return The <code>SelectableChannel</code> this Socket is bound to
+     * @return The {@link SelectableChannel} this Socket is bound to
      */
-    public SelectableChannel getChannel();
+    abstract SelectableChannel getChannel();
 
     /**
      * Sets the current {@link SelectionKey} for the socket.
      */
-    public void setSelectionKey(SelectionKey key);
+    abstract void setSelectionKey(SelectionKey key);
 }

@@ -11,7 +11,7 @@ import java.util.Deque;
 import java.util.concurrent.TimeUnit;
 
 
-class Socket implements SelectableSocket {
+class Socket extends SelectableSocket {
 
     private final Origin origin;
     private final RunLoop runLoop;
