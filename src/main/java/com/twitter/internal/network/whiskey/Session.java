@@ -55,8 +55,10 @@ interface Session {
      */
     void queue(RequestOperation operation);
 
-    CloseFuture getCloseFuture();
-
-    interface CloseFuture extends ListenableFuture<Session> {
-    }
+    /**
+     * Adds a listener to handle session closure. {@link Listener#onComplete(Object)} is called
+     * when the session closes normally and {@link Listener#onError(Throwable)} is called when
+     * the session closes unexpectedly.
+     */
+    void addCloseListener(Listener<Void> listener);
 }

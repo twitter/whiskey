@@ -51,8 +51,8 @@ class Socket extends SelectableSocket {
         return connectFuture;
     }
 
-    CloseFuture getCloseFuture() {
-        return closeFuture;
+    void addCloseListener(Listener<Void> listener) {
+        closeFuture.addListener(listener);
     }
 
     ReadFuture read() {
@@ -266,7 +266,7 @@ class Socket extends SelectableSocket {
         } catch (IOException ignored) {
         }
 
-        closeFuture.set(origin);
+        closeFuture.set(null);
     }
 
     public Request.Protocol getProtocol() {
@@ -276,7 +276,7 @@ class Socket extends SelectableSocket {
     class ConnectFuture extends CompletableFuture<Origin> {
     }
 
-    class CloseFuture extends CompletableFuture<Origin> {
+    class CloseFuture extends CompletableFuture<Void> {
     }
 
     class ReadFuture extends CompletableFuture<ByteBuffer> {

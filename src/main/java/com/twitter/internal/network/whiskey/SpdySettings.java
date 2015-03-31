@@ -133,8 +133,6 @@ class SpdySettings {
 
     public String toString() {
         StringBuilder buf = new StringBuilder();
-        buf.append("SpdySettingsFrame");
-        buf.append("\n");
         appendSettings(buf);
         buf.setLength(buf.length() - 1);
         return buf.toString();

@@ -6,7 +6,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.concurrent.Executor;
 
 import static com.twitter.internal.network.whiskey.SpdyConstants.*;
 
@@ -17,7 +16,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
 
     private final Origin origin;
     private final ClientConfiguration configuration;
-    private final SessionCloseFuture sessionCloseFuture;
+    private final CompletableFuture<Void> closeFuture;
     private final SessionManager manager;
     private final SpdyFrameDecoder frameDecoder;
     private final SpdyFrameEncoder frameEncoder;
@@ -54,8 +53,8 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
         sessionReceiveWindow = configuration.getSessionReceiveWindow();
         localMaxConcurrentStreams = configuration.getMaxPushStreams();
 
-        sessionCloseFuture = new SessionCloseFuture();
-        socket.getCloseFuture().addListener(new SocketCloseListener());
+        closeFuture = new CompletableFuture<>();
+        socket.addCloseListener(new SocketCloseListener());
         sendClientSettings();
         sendPing();
 
@@ -64,7 +63,18 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
         manager.poll(this, getCapacity());
 
         inputBuffer = ByteBuffer.allocate(DEFAULT_BUFFER_SIZE);
-        socket.read(inputBuffer).addListener(new SocketReadListener());
+        listen();
+    }
+
+    private void listen() {
+        socket.read(inputBuffer).addListener(new Inline.Listener<ByteBuffer>() {
+            @Override
+            public void onComplete(ByteBuffer result) {
+                frameDecoder.decode(result);
+                result.compact();
+                listen();
+            }
+        });
     }
 
     @Override
@@ -115,8 +125,8 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
     }
 
     @Override
-    public CloseFuture getCloseFuture() {
-        return sessionCloseFuture;
+    public void addCloseListener(Listener<Void> listener) {
+        closeFuture.addListener(listener);
     }
 
     /* SpdyFrameDecoderDelegate */
@@ -492,11 +502,15 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
     }
 
     public void sendRstStream(int streamId, int streamStatus) {
-        socket.write(frameEncoder.encodeRstStreamFrame(streamId, streamStatus));
+        WriteLogger logger = new WriteLogger(
+            "sent RST_STREAM (%l)\n--> Stream-ID = " + streamId + "\n--> Status = " + streamStatus);
+        socket.write(frameEncoder.encodeRstStreamFrame(streamId, streamStatus)).addListener(logger);
     }
 
     public void sendWindowUpdate(int streamId, int delta) {
-        socket.write(frameEncoder.encodeWindowUpdateFrame(streamId, delta));
+        WriteLogger logger = new WriteLogger(
+            "sent WINDOW_UPDATE (%l)\n--> Stream-ID = " + streamId + "\n--> Delta = " + delta);
+        socket.write(frameEncoder.encodeWindowUpdateFrame(streamId, delta)).addListener(logger);
     }
 
     private void sendData(SpdyStream stream) {
@@ -504,9 +518,13 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
     }
 
     private void sendClientSettings() {
+
         SpdySettings settings = new SpdySettings();
+        settings.setValue(SpdySettings.MAX_CONCURRENT_STREAMS, 100);
         settings.setValue(SpdySettings.INITIAL_WINDOW_SIZE, initialReceiveWindow);
-        socket.write(frameEncoder.encodeSettingsFrame(settings));
+
+        WriteLogger logger = new WriteLogger("sent SETTINGS (%l)\n" + settings.toString());
+        socket.write(frameEncoder.encodeSettingsFrame(settings)).addListener(logger);
     }
 
     private void sendPing() {
@@ -516,83 +534,48 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
 
         Socket.WriteFuture pingFuture = socket.write(frameEncoder.encodePingFrame(pingId));
 
-        pingFuture.addListener(new Listener<Long>() {
+        pingFuture.addListener(new Inline.Listener<Long>() {
             @Override
             public void onComplete(Long result) {
                 sentPingMap.put(pingId, PlatformAdapter.instance().timestamp());
             }
-
-            @Override
-            public void onError(Throwable throwable) {
-            }
-
-            @Override
-            public Executor getExecutor() {
-                return Inline.INSTANCE;
-            }
         });
+
+        pingFuture.addListener(new WriteLogger("sent PING (%l)\n--> Ping-ID = " + pingId));
     }
 
     private void sendPingResponse(int pingId) {
-        socket.write(frameEncoder.encodePingFrame(pingId));
+        WriteLogger logger = new WriteLogger("sent PING (%l)\n--> Ping-ID = " + pingId);
+        socket.write(frameEncoder.encodePingFrame(pingId)).addListener(logger);
     }
 
     public void closeWithStatus(int sessionStatus) {
 
     }
 
-    private class SocketReadListener implements Listener<ByteBuffer> {
-
-        @Override
-        public void onComplete(ByteBuffer result) {
-            frameDecoder.decode(result);
-            result.compact();
-            socket.read(result).addListener(new SocketReadListener());
-        }
-
-        @Override
-        public void onError(Throwable throwable) {
-        }
-
-        @Override
-        public Executor getExecutor() {
-            return Inline.INSTANCE;
-        }
-    }
-
-    private class SocketWriteLogger implements Listener<Long> {
+    private class WriteLogger extends Inline.Listener<Long> {
         String message;
 
-        SocketWriteLogger(final String message) {
+        WriteLogger(final String message) {
             this.message = message;
         }
 
         @Override
         public void onComplete(Long result) {
-            // TODO: simple platform-specific logging
-//            WhiskeyLog.d(message);
-        }
-
-        @Override
-        public void onError(Throwable throwable) {
-        }
-
-        @Override
-        public Executor getExecutor() {
-            return Inline.INSTANCE;
+            System.err.println(String.format(message, result));
         }
     }
 
-    private class SocketCloseListener implements Listener<Origin> {
+    private class SocketCloseListener extends Inline.Listener<Void> {
 
         /**
          * Occurs when the client has initiated the connection closure.
          */
         @Override
-        public void onComplete(Origin result) {
+        public void onComplete(Void result) {
             // We should never attempt to close the socket if there are active streams.
             assert activeStreams.size() == 0;
-            sessionCloseFuture.set(SpdySession.this);
+            closeFuture.set(null);
         }
 
         /**
@@ -608,15 +591,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
                 stream.close(throwable);
                 i.remove();
             }
-            sessionCloseFuture.fail(throwable);
+            closeFuture.fail(throwable);
         }
-
-        @Override
-        public Executor getExecutor() {
-            return Inline.INSTANCE;
-        }
-    }
-
-    class SessionCloseFuture extends CompletableFuture<Session> implements Session.CloseFuture {
     }
 }
