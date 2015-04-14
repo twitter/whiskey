@@ -107,7 +107,7 @@ final class SSLSocket extends Socket {
 
     private void readAndUnwrapHandshake() {
         ReadFuture readFuture = super.read();
-        readFuture.addListener(new Listener<ByteBuffer>() {
+        readFuture.addListener(new Inline.Listener<ByteBuffer>() {
 
             @Override
             public void onComplete(ByteBuffer result) {
@@ -122,12 +122,6 @@ final class SSLSocket extends Socket {
             public void onError(Throwable throwable) {
                 failConnect(throwable);
             }
-
-            @Override
-            public Executor getExecutor() {
-                return Inline.INSTANCE;
-            }
-
         });
     }
 
