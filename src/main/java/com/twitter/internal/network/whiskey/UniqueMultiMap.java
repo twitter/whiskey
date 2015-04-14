@@ -30,13 +30,10 @@ public class UniqueMultiMap<K, V> extends AbstractMultiMap<K, V> {
     }
 
     @Override
-    public V put(K key, V value) {
+    public void put(K key, V value) {
 
-        if (inverse.containsKey(value)) {
-            removeValue(value);
-        }
-
-        return super.put(key, value);
+        if (inverse.containsKey(value)) removeValue(value);
+        super.put(key, value);
     }
 
     @Override

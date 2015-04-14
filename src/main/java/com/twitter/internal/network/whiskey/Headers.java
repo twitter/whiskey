@@ -47,11 +47,9 @@ public class Headers extends AbstractMultiMap<String, String> {
     }
 
     @Override
-    public String put(String key, String value) {
+    public void put(String key, String value) {
         Header header = new Header(key, value);
         super.put(header.getKey(), header.getValue());
-
-        return key;
     }
 
     @Override

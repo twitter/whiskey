@@ -35,6 +35,11 @@ public abstract class AbstractMultiMap<K, V> implements MultiMap<K, V> {
     }
 
     @Override
+    public boolean containsKey(Object key) {
+        return map.containsKey(key);
+    }
+
+    @Override
     public Collection<V> get(K key) {
 
         Deque<V> values = map.get(key);
@@ -57,7 +62,7 @@ public abstract class AbstractMultiMap<K, V> implements MultiMap<K, V> {
     }
 
     @Override
-    public V put(K key, V value) {
+    public void put(K key, V value) {
 
         int sentinel = mutations;
         Deque<V> values = map.get(key);
@@ -68,7 +73,6 @@ public abstract class AbstractMultiMap<K, V> implements MultiMap<K, V> {
         values.addLast(value);
         size++;
         if (sentinel != mutations++) throw new ConcurrentModificationException();
-        return value;
     }
 
     @Override
