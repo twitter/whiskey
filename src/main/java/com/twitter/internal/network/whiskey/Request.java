@@ -2,6 +2,7 @@ package com.twitter.internal.network.whiskey;
 
 import android.support.annotation.Nullable;
 
+import java.io.InputStream;
 import java.net.CookieHandler;
 import java.net.URL;
 import java.nio.ByteBuffer;
@@ -13,7 +14,7 @@ public class Request {
     private final Request.Method method;
     private final Headers headers;
     private final ByteBuffer[] bodyData;
-    private final ReadableByteChannel bodyChannel;
+    private final InputStream bodyStream;
     private final CookieHandler cookieHandler;
     private final TimeUnit timeoutUnit;
     private final TimeUnit discretionaryUnit;
@@ -22,15 +23,13 @@ public class Request {
     private final long timeout;
     private final int maxRedirects;
     private final boolean idempotent;
-    private final boolean bodyChannelMayBlock;
 
     Request(
         URL url,
         Method method,
         Headers headers,
         ByteBuffer[] bodyData,
-        ReadableByteChannel bodyChannel,
-        boolean bodyChannelMayBlock,
+        InputStream bodyStream,
         double priority,
         CookieHandler cookieHandler,
         long discretionaryTimeout,
@@ -44,13 +43,7 @@ public class Request {
         this.method = method;
         this.headers = headers;
         this.bodyData = bodyData;
-        if (bodyData == null) {
-            this.bodyChannel = bodyChannel;
-            this.bodyChannelMayBlock = bodyChannelMayBlock;
-        } else {
-            this.bodyChannel = null;
-            this.bodyChannelMayBlock = false;
-        }
+        this.bodyStream = bodyData == null ? bodyStream : null;
         this.priority = priority;
         this.cookieHandler = cookieHandler;
         this.discretionaryTimeout = discretionaryTimeout;
@@ -77,8 +70,8 @@ public class Request {
         return bodyData;
     }
 
-    public ReadableByteChannel getBodyChannel() {
-        return bodyChannel;
+    public InputStream getBodyStream() {
+        return bodyStream;
     }
 
     public CookieHandler getCookieHandler() {

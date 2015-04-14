@@ -27,6 +27,7 @@ import static com.twitter.internal.network.whiskey.SpdyCodecUtil.*;
  */
 class SpdyFrameEncoder {
 
+    private final SpdyHeaderBlockEncoder headerBlockEncoder;
     private final int version;
 
     /**
@@ -36,6 +37,7 @@ class SpdyFrameEncoder {
         if (spdyVersion == null) {
             throw new NullPointerException("spdyVersion");
         }
+        headerBlockEncoder = new SpdyHeaderBlockZlibEncoder(spdyVersion, 9);
         version = spdyVersion.getVersion();
     }
 
@@ -61,11 +63,19 @@ class SpdyFrameEncoder {
         writeMedium(frame, length);
         frame.put(data);
         // TODO: return ByteBuffer[] to avoid copying data
+        frame.flip();
         return frame;
     }
 
     public ByteBuffer encodeSynStreamFrame(int streamId, int associatedToStreamId,
-            byte priority, boolean last, boolean unidirectional, ByteBuffer headerBlock) {
+            byte priority, boolean last, boolean unidirectional, Headers headers) {
+        ByteBuffer headerBlock;
+        try {
+            headerBlock = headerBlockEncoder.encode(headers);
+        } catch (Exception e) {
+            headerBlock = ByteBuffer.allocate(0);
+            System.err.println(e.toString());
+        }
         int headerBlockLength = headerBlock.limit();
         byte flags = last ? SPDY_FLAG_FIN : 0;
         if (unidirectional) {
@@ -79,10 +89,18 @@ class SpdyFrameEncoder {
         frame.putShort((short) ((priority & 0xFF) << 13));
         frame.put(headerBlock);
         // TODO: return ByteBuffer[] to avoid copying headers
+        frame.flip();
         return frame;
     }
 
-    public ByteBuffer encodeSynReplyFrame(int streamId, boolean last, ByteBuffer headerBlock) {
+    public ByteBuffer encodeSynReplyFrame(int streamId, boolean last, Headers headers) {
+        ByteBuffer headerBlock;
+        try {
+            headerBlock = headerBlockEncoder.encode(headers);
+        } catch (Exception e) {
+            headerBlock = ByteBuffer.allocate(0);
+            System.err.println(e.toString());
+        }
         int headerBlockLength = headerBlock.limit();
         byte flags = last ? SPDY_FLAG_FIN : 0;
         int length = 4 + headerBlockLength;
@@ -90,6 +108,7 @@ class SpdyFrameEncoder {
         writeControlFrameHeader(frame, SPDY_SYN_REPLY_FRAME, flags, length);
         frame.putInt(streamId);
         frame.put(headerBlock);
+        frame.flip();
         return frame;
     }
 
@@ -100,6 +119,7 @@ class SpdyFrameEncoder {
         writeControlFrameHeader(frame, SPDY_RST_STREAM_FRAME, flags, length);
         frame.putInt(streamId);
         frame.putInt(statusCode);
+        frame.flip();
         return frame;
     }
 
@@ -125,6 +145,7 @@ class SpdyFrameEncoder {
             writeMedium(frame, id);
             frame.putInt(spdySettings.getValue(id));
         }
+        frame.flip();
         return frame;
     }
 
@@ -134,6 +155,7 @@ class SpdyFrameEncoder {
         ByteBuffer frame = ByteBuffer.allocateDirect(SPDY_HEADER_SIZE + length).order(ByteOrder.BIG_ENDIAN);
         writeControlFrameHeader(frame, SPDY_PING_FRAME, flags, length);
         frame.putInt(id);
+        frame.flip();
         return frame;
     }
 
@@ -144,10 +166,18 @@ class SpdyFrameEncoder {
         writeControlFrameHeader(frame, SPDY_GOAWAY_FRAME, flags, length);
         frame.putInt(lastGoodStreamId);
         frame.putInt(statusCode);
+        frame.flip();
         return frame;
     }
 
-    public ByteBuffer encodeHeadersFrame(int streamId, boolean last, ByteBuffer headerBlock) {
+    public ByteBuffer encodeHeadersFrame(int streamId, boolean last, Headers headers) {
+        ByteBuffer headerBlock;
+        try {
+            headerBlock = headerBlockEncoder.encode(headers);
+        } catch (Exception e) {
+            headerBlock = ByteBuffer.allocate(0);
+            System.err.println(e.toString());
+        }
         int headerBlockLength = headerBlock.limit();
         byte flags = last ? SPDY_FLAG_FIN : 0;
         int length = 4 + headerBlockLength;
@@ -156,6 +186,7 @@ class SpdyFrameEncoder {
         frame.putInt(streamId);
         frame.put(headerBlock);
         // TODO: return ByteBuffer[] to avoid copying headers
+        frame.flip();
         return frame;
     }
 
@@ -166,6 +197,7 @@ class SpdyFrameEncoder {
         writeControlFrameHeader(frame, SPDY_WINDOW_UPDATE_FRAME, flags, length);
         frame.putInt(streamId);
         frame.putInt(deltaWindowSize);
+        frame.flip();
         return frame;
     }
 }

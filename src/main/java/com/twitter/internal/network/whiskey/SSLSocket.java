@@ -143,6 +143,11 @@ final class SSLSocket extends Socket {
     }
 
     @Override
+    ReadFuture read(ByteBuffer readBuffer) {
+        return read(new SSLReadFuture(readBuffer));
+    }
+
+    @Override
     ReadFuture read() {
         return read(new SSLReadFuture());
     }
@@ -160,6 +165,7 @@ final class SSLSocket extends Socket {
             return handshakeReadQueue;
         }
     }
+
     @Override
     Deque<WriteFuture> getWriteQueue() {
         if (engine.getHandshakeStatus() == SSLEngineResult.HandshakeStatus.NOT_HANDSHAKING) {
@@ -176,6 +182,14 @@ final class SSLSocket extends Socket {
     }
 
     private final class SSLReadFuture extends ReadFuture {
+
+        SSLReadFuture() {
+            super();
+        }
+
+        SSLReadFuture(ByteBuffer buffer) {
+            super(buffer);
+        }
 
         @Override
         boolean doRead(SocketChannel channel) throws IOException {

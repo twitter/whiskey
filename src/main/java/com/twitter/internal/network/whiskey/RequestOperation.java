@@ -1,5 +1,7 @@
 package com.twitter.internal.network.whiskey;
 
+import java.util.concurrent.ExecutionException;
+
 /**
  * @author Michael Schore
  */
@@ -71,6 +73,20 @@ class RequestOperation extends CompletableFuture<Response> implements ResponseFu
         }
 
         return false;
+    }
+
+    void complete(int statusCode) {
+
+        if (isDone()) throw new RuntimeException("operation already completed");
+        finalizeStats();
+        headersFuture.complete();
+        bodyFuture.complete();
+        statsFuture.set(stats);
+        try {
+            set(new Response(statusCode, headersFuture.get(), bodyFuture.get(), stats));
+        } catch (ExecutionException | InterruptedException e) {
+            fail(e);
+        }
     }
 
     void finalizeStats() {

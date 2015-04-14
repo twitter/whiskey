@@ -59,7 +59,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
         sendPing();
 
         int windowDelta = sessionReceiveWindow - DEFAULT_INITIAL_WINDOW_SIZE;
-        sendWindowUpdate(SPDY_SESSION_STREAM_ID, windowDelta);
+//        sendWindowUpdate(SPDY_SESSION_STREAM_ID, windowDelta);
         manager.poll(this, getCapacity());
 
         inputBuffer = ByteBuffer.allocate(DEFAULT_BUFFER_SIZE);
@@ -121,7 +121,20 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
     public void queue(RequestOperation operation) {
 
         SpdyStream stream = new SpdyStream(operation);
-        stream.open(nextStreamId, initialSendWindow, configuration.getStreamReceiveWindow());
+
+        int streamId = nextStreamId;
+        nextStreamId += 2;
+        Request request = operation.getCurrentRequest();
+        byte priority = (byte) Math.min(((int) (request.getPriority() * 8)), 7);
+
+        request.getHeaders().put(":path", request.getUrl().getPath());
+        request.getHeaders().put(":method", request.getMethod().toString());
+        request.getHeaders().put(":version", "HTTP/1.1");
+        request.getHeaders().put(":host", request.getUrl().getHost());
+        request.getHeaders().put(":scheme", "http");
+        stream.open(streamId, initialSendWindow, configuration.getStreamReceiveWindow());
+        activeStreams.add(stream);
+        sendSynStream(streamId, stream.getPriority(), !stream.hasPendingData(), request.getHeaders());
     }
 
     @Override
@@ -155,6 +168,10 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
      * a RST_STREAM frame with the status PROTOCOL_ERROR.
      */
 
+        System.err.println(
+            "read DATA\n--> Stream-ID = " + streamId + "\n--> Size = " + data.remaining() +
+                "\n--> Last: " + last
+        );
         SpdyStream stream = activeStreams.get(streamId);
 
         // Check if session flow control is violated
@@ -215,12 +232,13 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
             sendWindowUpdate(streamId, deltaWindowSize);
         }
 
-        stream.onData(data, last);
+        stream.onData(data);
 
         if (last) {
             stream.closeRemotely();
             if (stream.isClosed()) {
                 activeStreams.remove(stream);
+                stream.complete();
             }
         }
     }
@@ -267,6 +285,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
      * it must issue a stream error with the status code STREAM_IN_USE.
      */
 
+        System.err.println("read SYN_REPLY\n--> Stream-ID = " + streamId + "\n--> Last = " + last);
         SpdyStream stream = activeStreams.get(streamId);
 
         // Check if this is a reply for an active stream
@@ -320,6 +339,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
      * "origin" is the set of scheme, host, and port from the URI).
      */
 
+        System.err.println("read SETTINGS\n");
         if (clearPersisted) {
             storedSettings.remove(origin);
         }
@@ -383,6 +403,8 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
      *
      * Receivers of a PING frame must ignore frames that it did not initiate
      */
+
+        System.err.println("read PING\n--> Ping-ID = " + id);
 
         if (id % 2 == 0) {
             sendPingResponse(id);
@@ -469,6 +491,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
     @Override
     public void readHeader(int streamId, Header header) {
 
+        System.err.println("    " + header);
         SpdyStream stream = activeStreams.get(streamId);
         assert(stream != null); // Should have been caught when frame was decoded
 
@@ -483,6 +506,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
     @Override
     public void readHeadersEnd(int streamId) {
 
+        System.err.println("end headers");
         SpdyStream stream = activeStreams.get(streamId);
         assert(stream != null); // Should have been caught when frame was decoded
 
@@ -501,20 +525,34 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
 
     }
 
+    public void sendSynStream(int streamId, byte priority, boolean last, Headers headers) {
+
+        SpdyStream stream = activeStreams.get(streamId);
+        assert(!stream.isClosedLocally());
+        if (last) stream.closeLocally();
+
+        WriteLogger logger = new WriteLogger(
+            "sent SYN_STREAM (%d)\n--> Stream-ID = " + streamId + "\n--> Priority = " + priority +
+            "\n--> Last = " + last
+        );
+        socket.write(frameEncoder.encodeSynStreamFrame(streamId, 0, priority, last, false, headers)).addListener(logger);
+    }
+
     public void sendRstStream(int streamId, int streamStatus) {
         WriteLogger logger = new WriteLogger(
-            "sent RST_STREAM (%l)\n--> Stream-ID = " + streamId + "\n--> Status = " + streamStatus);
+            "sent RST_STREAM (%d)\n--> Stream-ID = " + streamId + "\n--> Status = " + streamStatus);
         socket.write(frameEncoder.encodeRstStreamFrame(streamId, streamStatus)).addListener(logger);
     }
 
     public void sendWindowUpdate(int streamId, int delta) {
         WriteLogger logger = new WriteLogger(
-            "sent WINDOW_UPDATE (%l)\n--> Stream-ID = " + streamId + "\n--> Delta = " + delta);
+            "sent WINDOW_UPDATE (%d)\n--> Stream-ID = " + streamId + "\n--> Delta = " + delta);
         socket.write(frameEncoder.encodeWindowUpdateFrame(streamId, delta)).addListener(logger);
     }
 
     private void sendData(SpdyStream stream) {
 
+        assert(!stream.isClosedLocally());
     }
 
     private void sendClientSettings() {
@@ -523,7 +561,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
         settings.setValue(SpdySettings.MAX_CONCURRENT_STREAMS, 100);
         settings.setValue(SpdySettings.INITIAL_WINDOW_SIZE, initialReceiveWindow);
 
-        WriteLogger logger = new WriteLogger("sent SETTINGS (%l)\n" + settings.toString());
+        WriteLogger logger = new WriteLogger("sent SETTINGS (%d)\n" + settings.toString());
         socket.write(frameEncoder.encodeSettingsFrame(settings)).addListener(logger);
     }
 
@@ -541,11 +579,11 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
             }
         });
 
-        pingFuture.addListener(new WriteLogger("sent PING (%l)\n--> Ping-ID = " + pingId));
+        pingFuture.addListener(new WriteLogger("sent PING (%d)\n--> Ping-ID = " + pingId));
     }
 
     private void sendPingResponse(int pingId) {
-        WriteLogger logger = new WriteLogger("sent PING (%l)\n--> Ping-ID = " + pingId);
+        WriteLogger logger = new WriteLogger("sent PING (%d)\n--> Ping-ID = " + pingId);
         socket.write(frameEncoder.encodePingFrame(pingId)).addListener(logger);
     }
 

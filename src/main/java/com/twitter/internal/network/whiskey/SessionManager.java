@@ -2,11 +2,16 @@ package com.twitter.internal.network.whiskey;
 
 
 import java.net.ConnectException;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executor;
+
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
 
 class SessionManager {
 
@@ -97,7 +102,25 @@ class SessionManager {
 
     private void createSocket(final int connectivity) {
 
-        final Socket socket = new Socket(origin, RunLoop.instance());
+        final Socket socket;
+        if (origin.getScheme().equals("http")) {
+            socket = new Socket(origin, RunLoop.instance());
+        } else {
+            SSLContext context;
+            SSLEngine engine;
+            try {
+                // TODO: read context from config
+//                context = SSLContext.getInstance("TLS");
+//                context.init(null, null, null);
+                context = SSLContext.getDefault();
+                engine = context.createSSLEngine();
+//            } catch (NoSuchAlgorithmException | NullPointerException | KeyManagementException e) {
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+
+            socket = new SSLSocket(origin, RunLoop.instance(), engine);
+        }
         pendingSocketMap.put(connectivity, socket);
         socket.connect().addListener(new Listener<Origin>() {
             @Override

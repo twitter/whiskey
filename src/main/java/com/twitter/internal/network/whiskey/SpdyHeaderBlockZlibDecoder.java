@@ -47,7 +47,7 @@ final class SpdyHeaderBlockZlibDecoder extends SpdyHeaderBlockRawDecoder {
         int len = compressed.remaining();
 
         if (compressed.hasArray()) {
-            decompressor.setInput(compressed.array(), compressed.arrayOffset(), len);
+            decompressor.setInput(compressed.array(), compressed.arrayOffset() + compressed.position(), len);
         } else {
             byte[] in = new byte[len];
             compressed.get(in);
@@ -60,7 +60,7 @@ final class SpdyHeaderBlockZlibDecoder extends SpdyHeaderBlockRawDecoder {
     private int decompress(int streamId) throws Exception {
 
         byte[] out = decompressed.array();
-        int offset = decompressed.arrayOffset();
+        int offset = decompressed.arrayOffset() + decompressed.position();
         try {
             int numBytes = decompressor.inflate(out, offset, decompressed.remaining());
             if (numBytes == 0 && decompressor.needsDictionary()) {

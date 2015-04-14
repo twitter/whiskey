@@ -74,8 +74,7 @@ class Socket extends SelectableSocket {
     }
 
     ReadFuture read(ByteBuffer readBuffer) {
-        // TODO: resolve this
-        return read();
+        return read(new ReadFuture(readBuffer));
     }
 
     ReadFuture read(int timeout, TimeUnit timeoutUnit) {
@@ -281,9 +280,17 @@ class Socket extends SelectableSocket {
 
     class ReadFuture extends CompletableFuture<ByteBuffer> {
 
-        private static final int BUFFER_SIZE = 18 * 1024;
+        private static final int DEFAULT_BUFFER_SIZE = 18 * 1024;
 
-        private final ByteBuffer buffer = ByteBuffer.allocate(BUFFER_SIZE);
+        private final ByteBuffer buffer;
+
+        ReadFuture() {
+            this(ByteBuffer.allocate(DEFAULT_BUFFER_SIZE));
+        }
+
+        ReadFuture(ByteBuffer buffer) {
+            this.buffer = buffer;
+        }
 
         boolean doRead(SocketChannel channel) throws IOException {
 

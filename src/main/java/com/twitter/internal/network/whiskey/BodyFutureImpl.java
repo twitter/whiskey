@@ -14,6 +14,7 @@ class BodyFutureImpl extends ReactiveFuture<ByteBuffer, ByteBuffer> implements B
     private LinkedList<Integer> boundaries = new LinkedList<>();
     private int expectedLength = 0;
 
+    // TODO: set this
     void setExpectedLength(int expectedLength) {
         this.expectedLength = expectedLength;
     }
@@ -21,11 +22,25 @@ class BodyFutureImpl extends ReactiveFuture<ByteBuffer, ByteBuffer> implements B
     @Override
     void accumulate(ByteBuffer element) {
 
-        if (element.limit() == 0) return;
+        if (!element.hasRemaining()) return;
         if (body == null) {
-            body = ByteBuffer.allocate(expectedLength);
+            body = ByteBuffer.allocate(Math.max(expectedLength, element.remaining()));
+            System.err.println("allocated " + body.capacity());
         }
-        body.put(element);
+
+        if (body.remaining() < element.remaining()) {
+            int required = body.position() + element.remaining();
+            // Allocate nearest power of 2 higher than the total required space
+            assert(required < Integer.MAX_VALUE >> 1);
+            ByteBuffer expanded = ByteBuffer.allocate(Integer.highestOneBit(required) << 1);
+            body.flip();
+            expanded.put(body);
+            expanded.put(element);
+            body = expanded;
+            System.err.println("grew buffer to " + body.capacity());
+        } else {
+            body.put(element);
+        }
         boundaries.add(body.position());
     }
 
@@ -45,6 +60,7 @@ class BodyFutureImpl extends ReactiveFuture<ByteBuffer, ByteBuffer> implements B
 
     @Override
     boolean complete() {
+        body.flip();
         return set(body);
     }
 }

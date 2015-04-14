@@ -1,5 +1,6 @@
 package com.twitter.internal.network.whiskey;
 
+import java.io.InputStream;
 import java.net.CookieHandler;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -17,7 +18,7 @@ public class RequestBuilder {
     private Request.Method method;
     private Headers headers;
     private ByteBuffer[] bodyData;
-    private ReadableByteChannel bodyChannel;
+    private InputStream bodyStream;
     private CookieHandler cookieHandler;
     private TimeUnit timeoutUnit;
     private TimeUnit discretionaryUnit;
@@ -26,7 +27,6 @@ public class RequestBuilder {
     private long timeout;
     private int maxRedirects;
     private boolean idempotent;
-    private boolean bodyChannelMayBlock;
 
     public RequestBuilder() {
         method = Request.Method.GET;
@@ -99,33 +99,35 @@ public class RequestBuilder {
         return this;
     }
 
+    /**
+     * Sets the request body to be read from the passed byte buffers and clears any content
+     * set by a previous call to this method or {@link #body(InputStream)}.
+     */
     public RequestBuilder body(ByteBuffer ... body) {
         bodyData = body.length > 0 ? body : null;
-        bodyChannel = null;
+        bodyStream = null;
         return this;
     }
 
     /**
-     * Sets the request body to be read from a {@link ReadableByteChannel}. Overrides any previous
-     * source for the request body.
+     * Sets the request body to be read from an input stream and clears any content
+     * set by a previous call to this method or {@link #body(ByteBuffer...)}.
      *
-     * If {@param mayBlock} is set to false, reads will be expected to never block excessively and
-     * will be performed directly on the networking Thread. If set to true a new Thread
-     * will be spawned to safely block on reads without impacting other I/O.
+     * Streams that may block are not fully-supported at this time, and the upload will
+     * be truncated the first time a call to {@link InputStream#available()}
+     * returns 0.
      *
-     * @param body the channel from which the request body will be read
-     * @param mayBlock whether the provided channel may ever block
+     * Note the preferred approach for uploading a file is to use {@link ByteBuffer}(s) via
+     * {@link java.nio.channels.FileChannel#map(java.nio.channels.FileChannel.MapMode, long, long)}.
+     * This can result in significantly improved performance over a {@link java.io.FileInputStream}.
+     *
+     * @param body the input stream from which the request body will be read
      */
-    public RequestBuilder body(ReadableByteChannel body, boolean mayBlock) {
+    public RequestBuilder body(InputStream body) {
+        this.bodyStream = body;
         bodyData = null;
-        bodyChannel = body;
-        bodyChannelMayBlock = mayBlock;
         return this;
     }
-
-//    public RequestBuilder body(ByteChannelProvider provider, boolean mayBlock) {
-//
-//    }
 
     public RequestBuilder priority(double priority) {
         this.priority = priority;
@@ -172,8 +174,7 @@ public class RequestBuilder {
                 method,
                 headers,
                 bodyData,
-                bodyChannel,
-                bodyChannelMayBlock,
+                bodyStream,
                 priority,
                 cookieHandler,
                 discretionaryTimeout,

@@ -46,6 +46,7 @@ public class WhiskeyClient {
                 manager.queue(operation);
             }
         });
+        RunLoop.instance().startThread();
     }
 
     public void addAlias(Origin alias, Origin origin) {

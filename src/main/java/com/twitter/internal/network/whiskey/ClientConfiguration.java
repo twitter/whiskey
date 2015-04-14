@@ -1,6 +1,8 @@
 package com.twitter.internal.network.whiskey;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 
@@ -26,7 +28,7 @@ class ClientConfiguration {
         boolean tcpNoDelay
     ) {
         this.protocols = new LinkedHashSet<>(protocols);
-        this.preferredProtocol = protocols.get(0);
+        preferredProtocol = protocols.get(0);
         this.upgradeStrategy = upgradeStrategy;
         this.connectTimeout = connectTimeout;
         this.compressionLevel = compressionLevel;
@@ -97,7 +99,10 @@ class ClientConfiguration {
         private boolean tcpNoDelay;
 
         public Builder() {
-            upgradeStrategy = UpgradeStrategy.ALPN;
+            protocols = new ArrayList<Request.Protocol>(1) {{
+                add(Request.Protocol.SPDY_3_1);
+            }};
+            upgradeStrategy = UpgradeStrategy.DIRECT;
             connectTimeout = 60000;
             compressionLevel = 0;
             sessionReceiveWindow = 10485760;

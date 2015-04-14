@@ -1,14 +1,16 @@
 package com.twitter.internal.network.whiskey;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.MalformedURLException;
 import java.net.ProtocolException;
 import java.net.URL;
 import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.zip.DataFormatException;
 
-final class SpdyStream {
+class SpdyStream {
 
     private static final Set<String> INVALID_HEADERS;
     static {
@@ -21,10 +23,12 @@ final class SpdyStream {
     }
 
     private RequestOperation operation;
+    private Request request;
     private Request.Method redirectMethod;
+    private ZlibInflater inflater;
     private URL redirectURL;
     private Integer statusCode;
-    private final int priority;
+    private final byte priority;
     private int streamId;
     private int sendWindow;
     private int receiveWindow;
@@ -37,19 +41,28 @@ final class SpdyStream {
     private boolean receivedReply;
     private boolean finalResponse;
 
-    SpdyStream(boolean local, int priority) {
+    SpdyStream(boolean local, byte priority) {
+        assert(priority == (byte) (priority & 0x07));
         this.local = local;
+        this.priority = priority;
         closedLocally = !local;
         closedRemotely = false;
-        this.priority = priority & 0x07;
+    }
+
+    static SpdyStream newStream(RequestOperation operation) {
+        if (operation.getCurrentRequest().getBodyData() != null) {
+            return new SpdyStream.Buffered(operation);
+        } else if (operation.getCurrentRequest().getBodyStream() != null) {
+            return new SpdyStream.Streamed(operation);
+        } else {
+            return new SpdyStream(operation);
+        }
     }
 
     SpdyStream(RequestOperation operation) {
-        this.local = true;
-        closedLocally = true;
-        closedRemotely = false;
+        this(true, (byte) Math.min(7, (int) ((1d - operation.getCurrentRequest().getPriority()) * 8)));
         this.operation = operation;
-        this.priority = Math.min(7, (int) ((1d - operation.getCurrentRequest().getPriority()) * 8));
+        request = operation.getCurrentRequest();
     }
 
     void open(int streamId, int sendWindow, int receiveWindow) {
@@ -60,15 +73,11 @@ final class SpdyStream {
         open = true;
     }
 
-    boolean reset() {
-        return false;
-    }
-
     int getStreamId() {
         return streamId;
     }
 
-    int getPriority() {
+    byte getPriority() {
         return priority;
     }
 
@@ -110,6 +119,12 @@ final class SpdyStream {
         if (redirectMethod != null && redirectURL != null) {
             redirect();
         }
+
+        if (!finalResponse) {
+            finalizeResponse();
+        }
+
+        operation.complete(statusCode);
     }
 
     boolean isOpen() {
@@ -148,6 +163,14 @@ final class SpdyStream {
         sendWindow -= delta;
     }
 
+    boolean hasPendingData() {
+        return false;
+    }
+
+    ByteBuffer readData(int length) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
     void onReply() {
         receivedReply = true;
     }
@@ -160,7 +183,13 @@ final class SpdyStream {
 
         switch(header.getKey()) {
             case ":status":
-                Integer status = Integer.valueOf(header.getValue());
+                Integer status;
+                try {
+                    status = Integer.valueOf(header.getValue().substring(0, 3));
+                } catch (NumberFormatException e) {
+                    // TODO: fail request but continue to consume stream
+                    throw new IOException("invalid HTTP response: " + header.getValue());
+                }
                 onStatus(status);
                 break;
             case "location":
@@ -168,8 +197,19 @@ final class SpdyStream {
                     Request currentRequest = operation.getCurrentRequest();
                     redirectURL = new URL(currentRequest.getUrl(), header.getValue());
                 } catch (MalformedURLException e) {
+                    // TODO: fail request but continue to consume stream
                     throw new IOException(
-                        "Malformed URL received for redirect: " + header.getValue(), e);
+                        "malformed URL received for redirect: " + header.getValue(), e);
+                }
+                break;
+            case "content-encoding":
+                String value = header.getValue();
+                if (value.equalsIgnoreCase("gzip")) {
+                    compressed = true;
+                    inflater = new ZlibInflater(ZlibInflater.Wrapper.GZIP);
+                } else if (value.equalsIgnoreCase("deflate")) {
+                    compressed = true;
+                    inflater = new ZlibInflater(ZlibInflater.Wrapper.UNKNOWN);
                 }
                 break;
         }
@@ -177,10 +217,37 @@ final class SpdyStream {
         operation.getHeadersFuture().provide(header);
     }
 
-    void onData(ByteBuffer data, boolean last) {
-        // TODO: decompress compressed bodies
+    void onData(ByteBuffer data) {
+
+        if (!data.hasRemaining()) return;
         if (!compressed) {
             operation.getBodyFuture().provide(data);
+        } else {
+            // Set chunk size to twice the next power of 2
+            assert(data.remaining() < Integer.MAX_VALUE >> 2);
+            int chunkSize = Integer.highestOneBit(data.remaining()) << 2;
+            ByteBuffer decompressed = ByteBuffer.allocate(chunkSize);
+            inflater.setInput(data.array(), data.arrayOffset() + data.position(), data.remaining());
+
+            int bytesWritten = 0;
+            do {
+                try {
+                    bytesWritten = inflater.inflate(
+                        decompressed.array(), decompressed.arrayOffset() + decompressed.position(), decompressed.remaining());
+                } catch (DataFormatException e) {
+                    throw new RuntimeException(e);
+                }
+                decompressed.position(decompressed.position() + bytesWritten);
+                if (inflater.getRemaining() > 0 && !decompressed.hasRemaining()) {
+                    decompressed.flip();
+                    operation.getBodyFuture().provide(decompressed);
+                    decompressed = ByteBuffer.allocate(chunkSize);
+                }
+            } while (!inflater.needsInput() && !inflater.finished());
+
+            decompressed.flip();
+            operation.getBodyFuture().provide(decompressed);
+            assert(inflater.getRemaining() == 0);
         }
     }
 
@@ -190,7 +257,8 @@ final class SpdyStream {
             throw new ProtocolException("unexpected second response status received: " + statusCode);
         }
 
-       if (statusCode >= 300 && statusCode < 400 && operation.getRemainingRedirects() > 0) {
+        this.statusCode = statusCode;
+        if (statusCode >= 300 && statusCode < 400 && operation.getRemainingRedirects() > 0) {
             Request currentRequest = operation.getCurrentRequest();
             Request.Method currentMethod = currentRequest.getMethod();
 
@@ -203,7 +271,7 @@ final class SpdyStream {
                 if (currentMethod == Request.Method.GET || currentMethod == Request.Method.HEAD) {
                     redirectMethod = currentMethod;
                 } else {
-                    setFinalResponse();
+                    finalizeResponse();
                 }
             } else if (statusCode == 302 || statusCode == 303) {
             /*
@@ -214,7 +282,7 @@ final class SpdyStream {
                 redirectMethod = Request.Method.GET;
             }
         } else if (statusCode != 100) {
-            setFinalResponse();
+            finalizeResponse();
         }
     }
 
@@ -237,8 +305,110 @@ final class SpdyStream {
      * The incoming response is the one to pass on to the client: no more
      * redirects will be followed and retry behavior is disallowed.
      */
-    private void setFinalResponse() {
+    private void finalizeResponse() {
         finalResponse = true;
         operation.getHeadersFuture().release();
+    }
+
+    private static class Buffered extends SpdyStream {
+        private ByteBuffer[] data;
+        private int dataIndex;
+
+        Buffered(RequestOperation operation) {
+            super(operation);
+            this.data = operation.getCurrentRequest().getBodyData();
+            dataIndex = 0;
+        }
+
+        @Override
+        boolean hasPendingData() {
+            while (dataIndex < data.length) {
+                if (data[dataIndex].hasRemaining()) return true;
+                dataIndex++;
+            }
+            return false;
+        }
+
+        ByteBuffer readData(int length) throws IOException {
+
+            while (dataIndex < data.length) {
+                int available = data[dataIndex].remaining();
+                if (available > 0) {
+                    int bytesToRead = Math.min(length, available);
+                    int oldLimit = data[dataIndex].limit();
+                    int sliceLimit = data[dataIndex].position() + bytesToRead;
+                    data[dataIndex].limit(sliceLimit);
+                    ByteBuffer slice = data[dataIndex].slice();
+                    data[dataIndex].limit(oldLimit);
+                    data[dataIndex].position(sliceLimit);
+                    return slice;
+                }
+                dataIndex++;
+            }
+
+            throw new IOException("no pending data");
+        }
+
+        boolean retry() {
+            for (ByteBuffer buffer : data) {
+                buffer.position(0);
+            }
+            return super.retry();
+        }
+    }
+
+    private static class Streamed extends SpdyStream {
+
+        // Limit the amount of data that may be read from a stream before it is
+        // considered "un-retryable" even if it supports mark and reset. Note that
+        // BufferedInputStream apparently possesses some especially undesirable
+        // behavior: it will buffer up to this limit in memory, even if the
+        // underlying stream natively supports "free" mark and reset behaviors.
+        private static final int MARK_READ_LIMIT = Integer.MAX_VALUE;
+
+        InputStream dataStream;
+        boolean pending = true;
+
+        Streamed(RequestOperation operation) {
+
+            super(operation);
+            this.dataStream = operation.getCurrentRequest().getBodyStream();
+            if (dataStream.markSupported()) {
+                dataStream.mark(MARK_READ_LIMIT);
+            }
+        }
+
+        @Override
+        boolean hasPendingData() {
+
+            if (!pending) return false;
+            try {
+                pending = dataStream.available() > 0;
+            } catch (IOException e) {
+                pending = false;
+            }
+            return pending;
+        }
+
+        @Override
+        ByteBuffer readData(int length) throws IOException {
+
+            int bytesToRead = Math.min(length, dataStream.available());
+            byte[] data = new byte[bytesToRead];
+            int bytesRead = dataStream.read(data);
+            return ByteBuffer.wrap(data, 0, bytesRead);
+        }
+
+        boolean retry() {
+
+            if (dataStream.markSupported()) {
+                try {
+                    dataStream.reset();
+                } catch (IOException e) {
+                    return false;
+                }
+            }
+            return super.retry();
+        }
     }
 }

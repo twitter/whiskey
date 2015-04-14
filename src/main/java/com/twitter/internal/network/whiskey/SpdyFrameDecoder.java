@@ -162,17 +162,23 @@ public class SpdyFrameDecoder {
                     }
 
                     // Generate data frames that do not exceed maxChunkSize
-                    int dataLength = Math.min(maxChunkSize, length);
+                    int bytesToRead = Math.min(maxChunkSize, length);
 
                     // TODO: consider removing this (and replacing with Math.min) for liveness
                     // Wait until entire frame is readable
-                    if (buffer.remaining() < dataLength) {
+
+                    if (buffer.remaining() < bytesToRead) {
+                        System.err.println("this happening (unnecessarily) all the time");
                         return;
                     }
 
-                    ByteBuffer data = ByteBuffer.allocate(dataLength);
+                    ByteBuffer data = ByteBuffer.allocate(bytesToRead);
+                    int oldLimit = buffer.limit();
+                    buffer.limit(buffer.position() + bytesToRead);
                     data.put(buffer);
-                    length -= dataLength;
+                    data.flip();
+                    buffer.limit(oldLimit);
+                    length -= bytesToRead;
 
                     if (length == 0) {
                         state = State.READ_COMMON_HEADER;

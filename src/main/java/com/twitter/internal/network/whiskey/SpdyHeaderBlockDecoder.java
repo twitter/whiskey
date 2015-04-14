@@ -20,10 +20,6 @@ import java.nio.ByteBuffer;
 
 abstract class SpdyHeaderBlockDecoder {
 
-    static SpdyHeaderBlockDecoder newInstance(SpdyVersion spdyVersion, SpdyFrameDecoderDelegate delegate, int maxHeaderSize) {
-        return new SpdyHeaderBlockZlibDecoder(spdyVersion, delegate, maxHeaderSize);
-    }
-
     /**
      * Decodes a SPDY Header Block, adding the Name/Value pairs to the given Headers frame.
      * If the header block is malformed, the Headers frame will be marked as invalid.
