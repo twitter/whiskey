@@ -72,15 +72,14 @@ final class SSLSocket extends Socket {
 
     private void unwrapHandshake(ByteBuffer wrappedBuf) throws IOException {
 
-        while (true) {
+        SSLEngineResult result;
+        do {
             // TODO(bgallagher) buffer pooling
             ByteBuffer to = ByteBuffer.allocate(engine.getSession().getPacketBufferSize());
 
             bufferedWrapped.put(wrappedBuf);
             bufferedWrapped.flip();
-
-            SSLEngineResult result = engine.unwrap(bufferedWrapped, to);
-
+            result = engine.unwrap(bufferedWrapped, to);
             bufferedWrapped.compact();
 
             switch (result.getHandshakeStatus()) {
@@ -101,12 +100,9 @@ final class SSLSocket extends Socket {
                 case NOT_HANDSHAKING:
                     break;
             }
+        } while (result.getStatus() != SSLEngineResult.Status.BUFFER_UNDERFLOW);
 
-            if (result.getStatus() == SSLEngineResult.Status.BUFFER_UNDERFLOW) {
-                readAndUnwrapHandshake();
-                break;
-            }
-        }
+        readAndUnwrapHandshake();
     }
 
     private void readAndUnwrapHandshake() {
