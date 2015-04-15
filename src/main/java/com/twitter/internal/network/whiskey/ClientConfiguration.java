@@ -2,14 +2,16 @@ package com.twitter.internal.network.whiskey;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
+
+import javax.net.ssl.SSLContext;
 
 class ClientConfiguration {
     final private LinkedHashSet<Request.Protocol> protocols;
     final private Request.Protocol preferredProtocol;
     final private UpgradeStrategy upgradeStrategy;
+    final private SSLContext sslContext;
     final private int connectTimeout;
     final private int compressionLevel;
     final private int maxPushStreams;
@@ -20,6 +22,7 @@ class ClientConfiguration {
     public ClientConfiguration(
         List<Request.Protocol> protocols,
         UpgradeStrategy upgradeStrategy,
+        SSLContext sslContext,
         int connectTimeout,
         int compressionLevel,
         int maxPushStreams,
@@ -30,6 +33,7 @@ class ClientConfiguration {
         this.protocols = new LinkedHashSet<>(protocols);
         preferredProtocol = protocols.get(0);
         this.upgradeStrategy = upgradeStrategy;
+        this.sslContext = sslContext;
         this.connectTimeout = connectTimeout;
         this.compressionLevel = compressionLevel;
         this.maxPushStreams = maxPushStreams;
@@ -70,6 +74,10 @@ class ClientConfiguration {
         return preferredProtocol;
     }
 
+    public SSLContext getSslContext() {
+        return sslContext;
+    }
+
     /**
      * The upgrade strategy to use when negotiating the protocol for a connection.
      *
@@ -91,6 +99,7 @@ class ClientConfiguration {
     public static class Builder {
         private List<Request.Protocol> protocols;
         private UpgradeStrategy upgradeStrategy;
+        private SSLContext sslContext;
         private int connectTimeout;
         private int compressionLevel;
         private int maxPushStreams;
@@ -99,6 +108,7 @@ class ClientConfiguration {
         private boolean tcpNoDelay;
 
         public Builder() {
+
             protocols = new ArrayList<Request.Protocol>(1) {{
                 add(Request.Protocol.SPDY_3_1);
             }};
@@ -135,8 +145,18 @@ class ClientConfiguration {
             return this;
         }
 
+        public Builder sslContext(SSLContext sslContext) {
+            this.sslContext = sslContext;
+            return this;
+        }
+
         public Builder sessionReceiveWindow(int sessionReceiveWindow) {
             this.sessionReceiveWindow = sessionReceiveWindow;
+            return this;
+        }
+
+        public Builder streamReceiveWindow(int streamReceiveWindow) {
+            this.streamReceiveWindow = streamReceiveWindow;
             return this;
         }
 
@@ -154,6 +174,7 @@ class ClientConfiguration {
             return new ClientConfiguration(
                 protocols,
                 upgradeStrategy,
+                sslContext,
                 connectTimeout,
                 compressionLevel,
                 maxPushStreams,

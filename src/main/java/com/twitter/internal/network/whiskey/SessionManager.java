@@ -2,13 +2,8 @@ package com.twitter.internal.network.whiskey;
 
 
 import java.net.ConnectException;
-import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayDeque;
 import java.util.Deque;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.Executor;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
@@ -18,8 +13,10 @@ class SessionManager {
     private final Origin origin;
     private final ClientConfiguration configuration;
     private final Deque<RequestOperation> pendingOperations = new LinkedHashDeque<>();
+    private final SSLContext sslContext;
     private final UniqueMultiMap<Integer, Socket> pendingSocketMap = new UniqueMultiMap<>();
     private final UniqueMultiMap<Integer, Session> openSessionMap = new UniqueMultiMap<>();
+    private final boolean secure;
 
     private static final int OFFLINE = -1;
     private static final int GENERIC = 0;
@@ -28,12 +25,15 @@ class SessionManager {
     private static final int MAX_PARALLELISM = 1;
 
     // TODO: update connectivity via ConnectivityManager/BroadcastReceiver/etc
+    // TODO: connect new sockets on connectivity change if requests are pending
     private volatile int connectivity = GENERIC;
 
     SessionManager(Origin origin, ClientConfiguration configuration) {
 
         this.configuration = configuration;
         this.origin = origin;
+        secure = origin.getScheme().equals("https");
+        sslContext = secure ? configuration.getSslContext() : null;
     }
 
     void queue(final RequestOperation operation) {
@@ -63,21 +63,12 @@ class SessionManager {
 
         // If no active sessions are available, queue the operation locally.
         // Listen for cancellation/timeout.
-        operation.addListener(new Listener<Response>() {
-            @Override
-            public void onComplete(Response result) {
-            }
-
+        operation.addListener(new Inline.Listener<Response>() {
             @Override
             public void onError(Throwable throwable) {
                 if (pendingOperations.contains(operation)) {
                     pendingOperations.remove(operation);
                 }
-            }
-
-            @Override
-            public Executor getExecutor() {
-                return Inline.INSTANCE;
             }
         });
 
@@ -100,29 +91,48 @@ class SessionManager {
         return origin;
     }
 
+    private void failOperations(Throwable e) {
+
+        RequestOperation operation;
+        while ((operation = pendingOperations.poll()) != null) {
+            operation.fail(e);
+        }
+    }
+
+    private SSLEngine newSslEngine() throws NoSuchAlgorithmException {
+
+        SSLEngine engine;
+        if (sslContext != null) {
+            engine = sslContext.createSSLEngine();
+        } else {
+            engine = SSLContext.getDefault().createSSLEngine();
+        }
+
+        // TODO: setup protocol negotiation
+        return engine;
+    }
+
     private void createSocket(final int connectivity) {
 
         final Socket socket;
-        if (origin.getScheme().equals("http")) {
-            socket = new Socket(origin, RunLoop.instance());
-        } else {
-            SSLContext context;
+        if (secure) {
             SSLEngine engine;
             try {
-                // TODO: read context from config
-//                context = SSLContext.getInstance("TLS");
-//                context.init(null, null, null);
-                context = SSLContext.getDefault();
-                engine = context.createSSLEngine();
-//            } catch (NoSuchAlgorithmException | NullPointerException | KeyManagementException e) {
-            } catch (Exception e) {
-                throw new RuntimeException(e);
+                engine = newSslEngine();
+            } catch (NoSuchAlgorithmException e) {
+                if (openSessionMap.isEmpty()) {
+                    failOperations(new ConnectException("SSLContext unavailable"));
+                }
+                return;
             }
 
             socket = new SSLSocket(origin, RunLoop.instance(), engine);
+        } else {
+            socket = new Socket(origin, RunLoop.instance());
         }
+
         pendingSocketMap.put(connectivity, socket);
-        socket.connect().addListener(new Listener<Origin>() {
+        socket.connect().addListener(new Inline.Listener<Origin>() {
             @Override
             public void onComplete(Origin result) {
                 pendingSocketMap.removeValue(socket);
@@ -133,15 +143,14 @@ class SessionManager {
             public void onError(Throwable throwable) {
                 pendingSocketMap.removeValue(socket);
 
-                // Re-attempt if conncetivity has changed
-                if (SessionManager.this.connectivity != connectivity) {
-                    createSocket(SessionManager.this.connectivity);
+                // If connectivity has changed operations may still succeed.
+                // Otherwise, if there are no more pending sockets assume we
+                // can't connect for now and fail operations.
+                if (SessionManager.this.connectivity == connectivity &&
+                    !pendingSocketMap.containsKey(connectivity) &&
+                    openSessionMap.isEmpty()) {
+                    failOperations(throwable);
                 }
-            }
-
-            @Override
-            public Executor getExecutor() {
-                return Inline.INSTANCE;
             }
         });
     }
