@@ -86,6 +86,14 @@ public class Request {
         return priority;
     }
 
+    public long getTimeout() {
+        return timeout;
+    }
+
+    public TimeUnit getTimeoutUnit() {
+        return timeoutUnit;
+    }
+
     /**
      * HTTP Request Method as specified in RFC 2616
      * http://www.w3.org/Protocols/rfc2616/rfc2616-sec9.html

@@ -13,6 +13,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * @author Michael Schore
  */
+// TODO: merge into Request class
 public class RequestBuilder {
     private URL url;
     private Request.Method method;

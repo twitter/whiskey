@@ -2,6 +2,8 @@ package com.twitter.internal.network.whiskey;
 
 import java.util.HashMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * @author Michael Schore
@@ -24,6 +26,20 @@ public class WhiskeyClient {
 
         final RequestOperation operation = new RequestOperation(this, request);
         queue(operation);
+
+        long timeout = request.getTimeout();
+        if (timeout > 0) {
+            Runnable timeoutOperation = new Runnable() {
+                @Override
+                public void run() {
+                    operation.fail(new TimeoutException("request timed out"));
+                }
+            };
+            timeout = Math.max(1, TimeUnit.MILLISECONDS.convert(timeout, request.getTimeoutUnit()));
+            RunLoop.instance().schedule(timeoutOperation, timeout, TimeUnit.MILLISECONDS);
+            // TODO: consider adding timeout cancellation via completion listener
+        }
+
         return operation;
     }
 
