@@ -2,6 +2,7 @@ package com.twitter.internal.network.whiskey;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.CookieHandler;
 import java.net.MalformedURLException;
 import java.net.ProtocolException;
 import java.net.URL;
@@ -73,6 +74,10 @@ class SpdyStream {
         open = true;
     }
 
+    RequestOperation getOperation() {
+        return operation;
+    }
+
     int getStreamId() {
         return streamId;
     }
@@ -131,19 +136,19 @@ class SpdyStream {
         return open;
     }
 
-    public boolean hasRecievedReply() {
+    boolean hasReceivedReply() {
         return receivedReply;
     }
 
-    public int getReceiveWindow() {
+    int getReceiveWindow() {
         return receiveWindow;
     }
 
-    public int getSendWindow() {
+    int getSendWindow() {
         return sendWindow;
     }
 
-    public void increaseReceiveWindow(int delta) {
+    void increaseReceiveWindow(int delta) {
         if (Integer.MAX_VALUE - delta < receiveWindow) {
             receiveWindow = Integer.MAX_VALUE;
         } else {
@@ -151,16 +156,27 @@ class SpdyStream {
         }
     }
 
-    public void increaseSendWindow(int delta) {
+    void increaseSendWindow(int delta) {
         sendWindow += delta;
     }
 
-    public void reduceReceiveWindow(int delta) {
+    void reduceReceiveWindow(int delta) {
         receiveWindow -= delta;
     }
 
-    public void reduceSendWindow(int delta) {
+    void reduceSendWindow(int delta) {
         sendWindow -= delta;
+    }
+
+    Headers getCanonicalHeaders() {
+
+        Headers canonical = new Headers(request.getHeaders());
+        canonical.put(":path", request.getUrl().getPath());
+        canonical.put(":method", request.getMethod().toString());
+        canonical.put(":version", "HTTP/1.1");
+        canonical.put(":host", request.getUrl().getHost());
+        canonical.put(":scheme", "http");
+        return canonical;
     }
 
     boolean hasPendingData() {
@@ -187,7 +203,6 @@ class SpdyStream {
                 try {
                     status = Integer.valueOf(header.getValue().substring(0, 3));
                 } catch (NumberFormatException e) {
-                    // TODO: fail request but continue to consume stream
                     throw new IOException("invalid HTTP response: " + header.getValue());
                 }
                 onStatus(status);
@@ -197,7 +212,6 @@ class SpdyStream {
                     Request currentRequest = operation.getCurrentRequest();
                     redirectURL = new URL(currentRequest.getUrl(), header.getValue());
                 } catch (MalformedURLException e) {
-                    // TODO: fail request but continue to consume stream
                     throw new IOException(
                         "malformed URL received for redirect: " + header.getValue(), e);
                 }
@@ -217,7 +231,7 @@ class SpdyStream {
         operation.getHeadersFuture().provide(header);
     }
 
-    void onData(ByteBuffer data) {
+    void onData(ByteBuffer data) throws DataFormatException {
 
         if (!data.hasRemaining()) return;
         if (!compressed) {
@@ -231,12 +245,8 @@ class SpdyStream {
 
             int bytesWritten = 0;
             do {
-                try {
-                    bytesWritten = inflater.inflate(
-                        decompressed.array(), decompressed.arrayOffset() + decompressed.position(), decompressed.remaining());
-                } catch (DataFormatException e) {
-                    throw new RuntimeException(e);
-                }
+                bytesWritten = inflater.inflate(
+                    decompressed.array(), decompressed.arrayOffset() + decompressed.position(), decompressed.remaining());
                 decompressed.position(decompressed.position() + bytesWritten);
                 if (inflater.getRemaining() > 0 && !decompressed.hasRemaining()) {
                     decompressed.flip();
@@ -287,7 +297,7 @@ class SpdyStream {
     }
 
     private void redirect() {
-        Request redirect = new RequestBuilder(operation.getCurrentRequest())
+        Request redirect = new Request.Builder(operation.getCurrentRequest())
             .method(redirectMethod)
             .url(redirectURL)
             .body()

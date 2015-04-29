@@ -29,6 +29,7 @@ public class WhiskeyClient {
 
         long timeout = request.getTimeout();
         if (timeout > 0) {
+            // TODO: add cancellation of timeouts
             Runnable timeoutOperation = new Runnable() {
                 @Override
                 public void run() {
@@ -37,7 +38,6 @@ public class WhiskeyClient {
             };
             timeout = Math.max(1, TimeUnit.MILLISECONDS.convert(timeout, request.getTimeoutUnit()));
             RunLoop.instance().schedule(timeoutOperation, timeout, TimeUnit.MILLISECONDS);
-            // TODO: consider adding timeout cancellation via completion listener
         }
 
         return operation;

@@ -2,7 +2,7 @@ package com.twitter.internal.network.whiskey;
 
 public class RequestStats {
 
-    public Request.Protocol protocol;
+    public Protocol protocol;
     public long durationMs;
     public long queuedMs;
     public long blockedMs;

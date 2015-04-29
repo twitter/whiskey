@@ -220,8 +220,7 @@ class RunLoop implements Executor {
         }
     }
 
-    // TODO: figure out liveness
-    // TODO: allow cancelation of scheduled tasks?
+    // TODO: allow cancellation of scheduled tasks
     private class RunLoopThread extends Thread {
 
         @Override

@@ -4,9 +4,11 @@ import android.support.annotation.Nullable;
 
 import java.io.InputStream;
 import java.net.CookieHandler;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
+import java.util.Collection;
 import java.util.concurrent.TimeUnit;
 
 public class Request {
@@ -148,31 +150,180 @@ public class Request {
         }
     }
 
-    /**
-     * HTTP-compatible protocol
-     */
-    public static enum Protocol {
-        HTTP_1_0 ("http/1.0"),
-        HTTP_1_1 ("http/1.1"),
-        HTTP_2_0 ("http/2"),
-        SPDY_2   ("spdy/2"),
-        SPDY_3   ("spdy/3"),
-        SPDY_3_1 ("spdy/3.1");
+    public static class Builder {
+        private URL url;
+        private Request.Method method;
+        private Headers headers;
+        private ByteBuffer[] bodyData;
+        private InputStream bodyStream;
+        private CookieHandler cookieHandler;
+        private TimeUnit timeoutUnit;
+        private TimeUnit discretionaryUnit;
+        private double priority;
+        private long discretionaryTimeout;
+        private long timeout;
+        private int maxRedirects;
+        private boolean idempotent;
 
-        private final String name;
-        private Protocol(String name) { this.name = name; }
+        public Builder() {
+            method = Request.Method.GET;
+            headers = new Headers();
+            priority = 0.5;
+            timeout = 60;
+            timeoutUnit = TimeUnit.SECONDS;
+        }
 
-        @Override public String toString() { return name; }
+        public Builder(URL url) {
+            this();
+            this.url = url;
+        }
 
-        @Nullable
-        public static Protocol fromString(String name) {
-            Protocol protocol;
-            try {
-                protocol = valueOf(name.toUpperCase().replaceAll("[-/.]", "_"));
-            } catch (IllegalArgumentException e) {
-                protocol = null;
-            }
-            return protocol;
+        public Builder(String url) throws MalformedURLException {
+            this(new URL(url));
+        }
+
+        public Builder(Request request) {
+            this.url = request.getUrl();
+            this.method = request.getMethod();
+            this.headers = request.getHeaders();
+        }
+
+        public Builder url(URL url) {
+            this.url = url;
+            return this;
+        }
+
+        public Builder url(String url) throws MalformedURLException {
+            this.url = new URL(url);
+            return this;
+        }
+
+        public Builder method(Request.Method method) {
+            this.method = method;
+            return this;
+        }
+
+        public Builder headers(Headers headers) {
+            this.headers = headers;
+            return this;
+        }
+
+        public Builder headers(Collection<Header> headers) {
+            this.headers = new Headers(headers);
+            this.headers.addAll(headers);
+            this.headers.entries().addAll(headers);
+            return this;
+        }
+
+        public Builder addHeader(Header header) {
+            if (headers == null) headers = new Headers();
+            this.headers.add(header);
+            return this;
+        }
+
+        public Builder addHeader(String name, String value) {
+            if (headers == null) headers = new Headers();
+            this.headers.put(name, value);
+            return this;
+        }
+
+        public Builder addHeaders(Headers headers) {
+            if (this.headers == null) this.headers = new Headers();
+            this.headers.putAll(headers);
+            return this;
+        }
+
+        public Builder addHeaders(Collection<Header> headers) {
+            if (this.headers == null) this.headers = new Headers();
+            this.headers.addAll(headers);
+            return this;
+        }
+
+        /**
+         * Sets the request body to be read from the passed byte buffers and clears any content
+         * set by a previous call to this method or {@link #body(InputStream)}.
+         */
+        public Builder body(ByteBuffer ... body) {
+            bodyData = body.length > 0 ? body : null;
+            bodyStream = null;
+            return this;
+        }
+
+        /**
+         * Sets the request body to be read from an input stream and clears any content
+         * set by a previous call to this method or {@link #body(ByteBuffer...)}.
+         *
+         * Streams that may block are not fully-supported at this time, and the upload will
+         * be truncated the first time a call to {@link InputStream#available()}
+         * returns 0.
+         *
+         * Note the preferred approach for uploading a file is to use {@link ByteBuffer}(s) via
+         * {@link java.nio.channels.FileChannel#map(java.nio.channels.FileChannel.MapMode, long, long)}.
+         * This can result in significantly improved performance over a {@link java.io.FileInputStream}.
+         *
+         * @param body the input stream from which the request body will be read
+         */
+        public Builder body(InputStream body) {
+            this.bodyStream = body;
+            bodyData = null;
+            return this;
+        }
+
+        public Builder priority(double priority) {
+            this.priority = priority;
+            return this;
+        }
+
+        public Builder cookieHandler(CookieHandler handler) {
+            cookieHandler = handler;
+            return this;
+        }
+
+        /**
+         * Sets whether the request should be treated as idempotent (which may affect retransmission
+         * attempts). Note that the RFC 2616 does define idempotency as a property of several request
+         * methods, but in practice APIs are incosistent about adhering to this.
+         *
+         * @param idempotent whether the request may be treated as idempotent
+         */
+        public Builder idempotent(boolean idempotent) {
+            this.idempotent = idempotent;
+            return this;
+        }
+
+        public Builder maxRedirects(int maxRedirects) {
+            this.maxRedirects = maxRedirects;
+            return this;
+        }
+
+        public Builder timeout(long timeout, TimeUnit unit) {
+            this.timeout = timeout;
+            timeoutUnit = unit;
+            return this;
+        }
+
+        public Builder discretionary(long timeout, TimeUnit unit) {
+            discretionaryTimeout = timeout;
+            discretionaryUnit = unit;
+            return this;
+        }
+
+        public Request create() {
+            return new Request(
+                url,
+                method,
+                headers,
+                bodyData,
+                bodyStream,
+                priority,
+                cookieHandler,
+                discretionaryTimeout,
+                discretionaryUnit,
+                idempotent,
+                maxRedirects,
+                timeout,
+                timeoutUnit
+            );
         }
     }
 }

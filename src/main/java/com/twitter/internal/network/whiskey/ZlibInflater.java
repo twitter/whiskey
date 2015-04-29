@@ -221,12 +221,10 @@ public class ZlibInflater extends Inflater {
                     if (readGZIPFooter()) {
                         finished = true;
                     }
-                    // TODO confirm 0 bytes have been written here
                     return 0;
                 default:
                     if (gzipState != GzipState.HEADER_END) {
                         if (!readGZIPHeader()) {
-                            // TODO confirm 0 bytes have been written here
                             return 0;
                         }
                     }

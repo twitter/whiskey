@@ -268,8 +268,8 @@ class Socket extends SelectableSocket {
         closeFuture.set(null);
     }
 
-    public Request.Protocol getProtocol() {
-        return Request.Protocol.SPDY_3_1;
+    public Protocol getProtocol() {
+        return Protocol.SPDY_3_1;
     }
 
     class ConnectFuture extends CompletableFuture<Origin> {

@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.zip.DataFormatException;
 
 import static com.twitter.internal.network.whiskey.SpdyConstants.*;
 
@@ -59,7 +60,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
         sendPing();
 
         int windowDelta = sessionReceiveWindow - DEFAULT_INITIAL_WINDOW_SIZE;
-//        sendWindowUpdate(SPDY_SESSION_STREAM_ID, windowDelta);
+        sendWindowUpdate(SPDY_SESSION_STREAM_ID, windowDelta);
         manager.poll(this, getCapacity());
 
         inputBuffer = ByteBuffer.allocate(DEFAULT_BUFFER_SIZE);
@@ -120,21 +121,28 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
     @Override
     public void queue(RequestOperation operation) {
 
-        SpdyStream stream = new SpdyStream(operation);
-
-        int streamId = nextStreamId;
+        final SpdyStream stream = SpdyStream.newStream(operation);
+        final int streamId = nextStreamId;
         nextStreamId += 2;
-        Request request = operation.getCurrentRequest();
-        byte priority = (byte) Math.min(((int) (request.getPriority() * 8)), 7);
-
-        request.getHeaders().put(":path", request.getUrl().getPath());
-        request.getHeaders().put(":method", request.getMethod().toString());
-        request.getHeaders().put(":version", "HTTP/1.1");
-        request.getHeaders().put(":host", request.getUrl().getHost());
-        request.getHeaders().put(":scheme", "http");
         stream.open(streamId, initialSendWindow, configuration.getStreamReceiveWindow());
         activeStreams.add(stream);
-        sendSynStream(streamId, stream.getPriority(), !stream.hasPendingData(), request.getHeaders());
+
+        // TODO: implement via interrupts to avoid unnecessary calls
+        operation.addListener(new Inline.Listener<Response>() {
+            @Override
+            public void onError(Throwable throwable) {
+                if (activeStreams.contains(stream)) {
+                    activeStreams.remove(stream);
+                    sendRstStream(streamId, SPDY_STREAM_CANCEL);
+                }
+            }
+        });
+        boolean hasBody = stream.hasPendingData();
+        sendSynStream(
+            streamId, stream.getPriority(), !hasBody, stream.getCanonicalHeaders());
+        if (hasBody) {
+            sendData(stream);
+        }
     }
 
     @Override
@@ -197,7 +205,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
         }
 
         // Check if we received a data frame before receiving a SYN_REPLY
-        if (stream.isLocal() && !stream.hasRecievedReply()) {
+        if (stream.isLocal() && !stream.hasReceivedReply()) {
             sendRstStream(streamId, SPDY_STREAM_PROTOCOL_ERROR);
             return;
         }
@@ -232,7 +240,13 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
             sendWindowUpdate(streamId, deltaWindowSize);
         }
 
-        stream.onData(data);
+        try {
+            stream.onData(data);
+        } catch (DataFormatException e) {
+            sendRstStream(streamId, SPDY_STREAM_INTERNAL_ERROR);
+            activeStreams.remove(stream);
+            stream.close(e);
+        }
 
         if (last) {
             stream.closeRemotely();
@@ -295,7 +309,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
         }
 
         // Check if we have received multiple frames for the same Stream-ID
-        if (stream.hasRecievedReply()) {
+        if (stream.hasReceivedReply()) {
             sendRstStream(streamId, SPDY_STREAM_STREAM_IN_USE);
             return;
         }
@@ -426,8 +440,8 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
 
         for (SpdyStream stream : activeStreams) {
             if (stream.isLocal() && stream.getStreamId() > lastGoodStreamId) {
-                stream.close(new SpdySessionException(statusCode));
                 activeStreams.remove(stream);
+                stream.close(new SpdySessionException(statusCode));
             }
         }
     }
@@ -463,7 +477,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
 
             sessionSendWindow += deltaWindowSize;
             for (SpdyStream stream : activeStreams) {
-                sendData(stream);
+                if (!stream.isClosedLocally()) sendData(stream);
                 if (sessionSendWindow == 0) break;
             }
 
@@ -485,7 +499,9 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
         }
 
         stream.increaseSendWindow(deltaWindowSize);
-        sendData(stream);
+        if (!stream.isClosedLocally()) {
+            sendData(stream);
+        }
     }
 
     @Override
@@ -498,6 +514,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
         try {
             stream.onHeader(header);
         } catch (IOException e) {
+            sendRstStream(streamId, SPDY_STREAM_PROTOCOL_ERROR);
             activeStreams.remove(stream);
             stream.close(e);
         }
@@ -535,7 +552,8 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
             "sent SYN_STREAM (%d)\n--> Stream-ID = " + streamId + "\n--> Priority = " + priority +
             "\n--> Last = " + last
         );
-        socket.write(frameEncoder.encodeSynStreamFrame(streamId, 0, priority, last, false, headers)).addListener(logger);
+        socket.write(frameEncoder.encodeSynStreamFrame(streamId, 0, priority, last, false, headers))
+            .addListener(logger);
     }
 
     public void sendRstStream(int streamId, int streamStatus) {
@@ -552,7 +570,42 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
 
     private void sendData(SpdyStream stream) {
 
-        assert(!stream.isClosedLocally());
+        int streamId = stream.getStreamId();
+        int sendWindow = Math.min(sessionSendWindow, stream.getSendWindow());
+
+        while (stream.hasPendingData()) {
+            assert(!stream.isClosedLocally());
+            if (sendWindow == 0) {
+                // TODO: measure flow control delay here
+                // stream.markBlocked();
+                return;
+            }
+            // stream.markUnblocked();
+
+            ByteBuffer data;
+            try {
+                data = stream.readData(sendWindow);
+            } catch (IOException e) {
+                sendRstStream(streamId, SPDY_STREAM_INTERNAL_ERROR);
+                activeStreams.remove(stream);
+                stream.close(e);
+                return;
+            }
+
+            int bytesSent = data.remaining();
+            boolean last = !stream.hasPendingData();
+            if (bytesSent > 0 || last) {
+                WriteLogger logger = new WriteLogger(
+                    "sent DATA (%d)\n--> Stream-ID = " + streamId + "\n--> Last = " + last);
+                socket.write(frameEncoder.encodeDataFrame(streamId, last, data))
+                    .addListener(logger);
+
+                sessionSendWindow -= bytesSent;
+                stream.reduceSendWindow(bytesSent);
+            }
+
+            if (last) stream.closeLocally();
+        }
     }
 
     private void sendClientSettings() {

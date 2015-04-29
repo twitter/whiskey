@@ -8,8 +8,8 @@ import java.util.List;
 import javax.net.ssl.SSLContext;
 
 class ClientConfiguration {
-    final private LinkedHashSet<Request.Protocol> protocols;
-    final private Request.Protocol preferredProtocol;
+    final private LinkedHashSet<Protocol> protocols;
+    final private Protocol preferredProtocol;
     final private UpgradeStrategy upgradeStrategy;
     final private SSLContext sslContext;
     final private int connectTimeout;
@@ -20,7 +20,7 @@ class ClientConfiguration {
     final private boolean tcpNoDelay;
 
     public ClientConfiguration(
-        List<Request.Protocol> protocols,
+        List<Protocol> protocols,
         UpgradeStrategy upgradeStrategy,
         SSLContext sslContext,
         int connectTimeout,
@@ -70,7 +70,7 @@ class ClientConfiguration {
         return upgradeStrategy;
     }
 
-    public Request.Protocol getPreferredProtocol() {
+    public Protocol getPreferredProtocol() {
         return preferredProtocol;
     }
 
@@ -97,7 +97,7 @@ class ClientConfiguration {
     }
 
     public static class Builder {
-        private List<Request.Protocol> protocols;
+        private List<Protocol> protocols;
         private UpgradeStrategy upgradeStrategy;
         private SSLContext sslContext;
         private int connectTimeout;
@@ -109,9 +109,8 @@ class ClientConfiguration {
 
         public Builder() {
 
-            protocols = new ArrayList<Request.Protocol>(1) {{
-                add(Request.Protocol.SPDY_3_1);
-            }};
+            protocols = new ArrayList<>(1);
+            protocols.add(Protocol.SPDY_3_1);
             upgradeStrategy = UpgradeStrategy.DIRECT;
             connectTimeout = 60000;
             compressionLevel = 0;
@@ -135,12 +134,12 @@ class ClientConfiguration {
             return this;
         }
 
-        public Builder protocols(Request.Protocol... protocols) {
+        public Builder protocols(Protocol... protocols) {
             this.protocols = Arrays.asList(protocols);
             return this;
         }
 
-        public Builder protocols(List<Request.Protocol> protocols) {
+        public Builder protocols(List<Protocol> protocols) {
             this.protocols = protocols;
             return this;
         }

@@ -54,20 +54,18 @@ class SpdyFrameEncoder {
         buffer.put((byte) medium);
     }
 
-    public ByteBuffer encodeDataFrame(int streamId, boolean last, ByteBuffer data) {
+    public ByteBuffer[] encodeDataFrame(int streamId, boolean last, ByteBuffer data) {
         byte flags = last ? SPDY_DATA_FLAG_FIN : 0;
         int length = data.limit();
-        ByteBuffer frame = ByteBuffer.allocateDirect(SPDY_HEADER_SIZE + length).order(ByteOrder.BIG_ENDIAN);
+        ByteBuffer frame = ByteBuffer.allocateDirect(SPDY_HEADER_SIZE).order(ByteOrder.BIG_ENDIAN);
         frame.putInt(streamId & 0x7FFFFFFF);
         frame.put(flags);
         writeMedium(frame, length);
-        frame.put(data);
-        // TODO: return ByteBuffer[] to avoid copying data
         frame.flip();
-        return frame;
+        return new ByteBuffer[]{ frame, data };
     }
 
-    public ByteBuffer encodeSynStreamFrame(int streamId, int associatedToStreamId,
+    public ByteBuffer[] encodeSynStreamFrame(int streamId, int associatedToStreamId,
             byte priority, boolean last, boolean unidirectional, Headers headers) {
         ByteBuffer headerBlock;
         try {
@@ -82,18 +80,16 @@ class SpdyFrameEncoder {
             flags |= SPDY_FLAG_UNIDIRECTIONAL;
         }
         int length = 10 + headerBlockLength;
-        ByteBuffer frame = ByteBuffer.allocateDirect(SPDY_HEADER_SIZE + length).order(ByteOrder.BIG_ENDIAN);
+        ByteBuffer frame = ByteBuffer.allocateDirect(SPDY_HEADER_SIZE + 10).order(ByteOrder.BIG_ENDIAN);
         writeControlFrameHeader(frame, SPDY_SYN_STREAM_FRAME, flags, length);
         frame.putInt(streamId);
         frame.putInt(associatedToStreamId);
         frame.putShort((short) ((priority & 0xFF) << 13));
-        frame.put(headerBlock);
-        // TODO: return ByteBuffer[] to avoid copying headers
         frame.flip();
-        return frame;
+        return new ByteBuffer[]{ frame, headerBlock };
     }
 
-    public ByteBuffer encodeSynReplyFrame(int streamId, boolean last, Headers headers) {
+    public ByteBuffer[] encodeSynReplyFrame(int streamId, boolean last, Headers headers) {
         ByteBuffer headerBlock;
         try {
             headerBlock = headerBlockEncoder.encode(headers);
@@ -104,12 +100,11 @@ class SpdyFrameEncoder {
         int headerBlockLength = headerBlock.limit();
         byte flags = last ? SPDY_FLAG_FIN : 0;
         int length = 4 + headerBlockLength;
-        ByteBuffer frame = ByteBuffer.allocateDirect(SPDY_HEADER_SIZE + length).order(ByteOrder.BIG_ENDIAN);
+        ByteBuffer frame = ByteBuffer.allocateDirect(SPDY_HEADER_SIZE + 4).order(ByteOrder.BIG_ENDIAN);
         writeControlFrameHeader(frame, SPDY_SYN_REPLY_FRAME, flags, length);
         frame.putInt(streamId);
-        frame.put(headerBlock);
         frame.flip();
-        return frame;
+        return new ByteBuffer[]{ frame, headerBlock };
     }
 
     public ByteBuffer encodeRstStreamFrame(int streamId, int statusCode) {
@@ -170,7 +165,7 @@ class SpdyFrameEncoder {
         return frame;
     }
 
-    public ByteBuffer encodeHeadersFrame(int streamId, boolean last, Headers headers) {
+    public ByteBuffer[] encodeHeadersFrame(int streamId, boolean last, Headers headers) {
         ByteBuffer headerBlock;
         try {
             headerBlock = headerBlockEncoder.encode(headers);
@@ -181,13 +176,11 @@ class SpdyFrameEncoder {
         int headerBlockLength = headerBlock.limit();
         byte flags = last ? SPDY_FLAG_FIN : 0;
         int length = 4 + headerBlockLength;
-        ByteBuffer frame = ByteBuffer.allocateDirect(SPDY_HEADER_SIZE + length).order(ByteOrder.BIG_ENDIAN);
+        ByteBuffer frame = ByteBuffer.allocateDirect(SPDY_HEADER_SIZE + 4).order(ByteOrder.BIG_ENDIAN);
         writeControlFrameHeader(frame, SPDY_HEADERS_FRAME, flags, length);
         frame.putInt(streamId);
-        frame.put(headerBlock);
-        // TODO: return ByteBuffer[] to avoid copying headers
         frame.flip();
-        return frame;
+        return new ByteBuffer[]{ frame, headerBlock };
     }
 
     public ByteBuffer encodeWindowUpdateFrame(int streamId, int deltaWindowSize) {
