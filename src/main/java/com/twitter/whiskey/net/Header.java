@@ -36,6 +36,23 @@ public class Header extends AbstractMap.SimpleImmutableEntry<String, String> {
         this(entry.getKey(), entry.getValue());
     }
 
+    public int getIntegerValue() {
+        try {
+            return Integer.valueOf(getValue());
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    public long getLongValue() {
+        try {
+            return Long.valueOf(getValue());
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    @Override
     public String toString() {
         return getKey() + ": " + getValue();
     }

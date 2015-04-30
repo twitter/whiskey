@@ -16,7 +16,6 @@ class BodyFutureImpl extends ReactiveFuture<ByteBuffer, ByteBuffer> implements B
     private LinkedList<Integer> boundaries = new LinkedList<>();
     private int expectedLength = 0;
 
-    // TODO: set this
     void setExpectedLength(int expectedLength) {
         this.expectedLength = expectedLength;
     }

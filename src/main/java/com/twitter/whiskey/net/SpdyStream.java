@@ -35,6 +35,7 @@ class SpdyStream {
     private int sendWindow;
     private int receiveWindow;
     private int unackedWindow;
+    private int expectedContentLength;
     private boolean compressed;
     private boolean local;
     private boolean open;
@@ -199,6 +200,7 @@ class SpdyStream {
         }
 
         switch(header.getKey()) {
+
             case ":status":
                 Integer status;
                 try {
@@ -208,7 +210,8 @@ class SpdyStream {
                 }
                 onStatus(status);
                 break;
-            case "location":
+
+            case Headers.LOCATION:
                 try {
                     Request currentRequest = operation.getCurrentRequest();
                     redirectURL = new URL(currentRequest.getUrl(), header.getValue());
@@ -217,19 +220,46 @@ class SpdyStream {
                         "malformed URL received for redirect: " + header.getValue(), e);
                 }
                 break;
-            case "content-encoding":
+
+            case Headers.CONTENT_ENCODING:
                 String value = header.getValue();
                 if (value.equalsIgnoreCase("gzip")) {
                     compressed = true;
                     inflater = new ZlibInflater(ZlibInflater.Wrapper.GZIP);
+                } else if (value.equalsIgnoreCase("zlib")) {
+                    compressed = true;
+                    inflater = new ZlibInflater(ZlibInflater.Wrapper.ZLIB);
                 } else if (value.equalsIgnoreCase("deflate")) {
                     compressed = true;
                     inflater = new ZlibInflater(ZlibInflater.Wrapper.UNKNOWN);
+                } else {
+                    break;
+                }
+
+                if (expectedContentLength > 0) {
+                    int approximateLength = estimateContentLength(expectedContentLength);
+                    operation.getBodyFuture().setExpectedLength(approximateLength);
+                }
+                break;
+
+            case Headers.CONTENT_LENGTH:
+                expectedContentLength = header.getIntegerValue();
+                if (expectedContentLength <= 0) break;
+                if (compressed) {
+                    operation.getBodyFuture().setExpectedLength(estimateContentLength(expectedContentLength));
+                } else {
+                    operation.getBodyFuture().setExpectedLength(expectedContentLength);
                 }
                 break;
         }
 
         operation.getHeadersFuture().provide(header);
+    }
+
+    private static int estimateContentLength(int contentLength) {
+        // This can be fine-tuned, but is based on a rough estimate of 80%
+        // efficiency for plaintext compression.
+        return Integer.highestOneBit(contentLength << 3);
     }
 
     void onData(ByteBuffer data) throws DataFormatException {

@@ -15,22 +15,27 @@ import java.util.HashMap;
 
 public class Headers extends AbstractMultiMap<String, String> {
 
-    public static String ACCEPT = "accept";
-    public static String ACCEPT_CHARSET = "accept-charset";
-    public static String ACCEPT_LANGUAGE = "accept-language";
-    public static String ACCEPT_ENCODING = "accept-encoding";
-    public static String CONTENT_LENGTH = "content-length";
-    public static String CONTENT_TYPE = "content-type";
-    public static String COOKIE = "cookie";
-    public static String DATE = "date";
-    public static String SET_COOKIE = "set-cookie";
+    public static final String ACCEPT = "accept";
+    public static final String ACCEPT_CHARSET = "accept-charset";
+    public static final String ACCEPT_LANGUAGE = "accept-language";
+    public static final String ACCEPT_ENCODING = "accept-encoding";
+    public static final String CONTENT_LENGTH = "content-length";
+    public static final String CONTENT_TYPE = "content-type";
+    public static final String COOKIE = "cookie";
+    public static final String DATE = "date";
+    public static final String IF_MODIFIED_SINCE = "if-modified-since";
 
-    public static String CONNECTION = "connection";
-    public static String KEEP_ALIVE = "keep-alive";
-    public static String PROXY_CONNECTION = "proxy-connection";
-    public static String TRANSFER_ENCODING = "transfer-encoding";
+    public static final String CONTENT_ENCODING = "content-encoding";
+    public static final String LAST_MODIFIED = "last-modified";
+    public static final String LOCATION = "location";
+    public static final String SET_COOKIE = "set-cookie";
 
-    public static String[] RESERVED_HEADERS = { ":host", ":path", ":method", ":scheme" };
+    public static final String CONNECTION = "connection";
+    public static final String KEEP_ALIVE = "keep-alive";
+    public static final String PROXY_CONNECTION = "proxy-connection";
+    public static final String TRANSFER_ENCODING = "transfer-encoding";
+
+    public static final String[] RESERVED_HEADERS = { ":host", ":path", ":method", ":scheme" };
 
     private HeaderCollection entries = new HeaderCollection();
 
