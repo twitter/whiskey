@@ -15,6 +15,7 @@ class ClientConfiguration {
     final private int connectTimeout;
     final private int compressionLevel;
     final private int maxPushStreams;
+    final private int maxTcpConnections;
     final private int sessionReceiveWindow;
     final private int streamReceiveWindow;
     final private boolean tcpNoDelay;
@@ -26,6 +27,7 @@ class ClientConfiguration {
         int connectTimeout,
         int compressionLevel,
         int maxPushStreams,
+        int maxTcpConnections,
         int sessionReceiveWindow,
         int streamReceiveWindow,
         boolean tcpNoDelay
@@ -37,6 +39,7 @@ class ClientConfiguration {
         this.connectTimeout = connectTimeout;
         this.compressionLevel = compressionLevel;
         this.maxPushStreams = maxPushStreams;
+        this.maxTcpConnections = maxTcpConnections;
         this.sessionReceiveWindow = sessionReceiveWindow;
         this.streamReceiveWindow = streamReceiveWindow;
         this.tcpNoDelay = tcpNoDelay;
@@ -52,6 +55,10 @@ class ClientConfiguration {
 
     public int getMaxPushStreams() {
         return maxPushStreams;
+    }
+
+    public int getMaxTcpConnections() {
+        return maxTcpConnections;
     }
 
     public int getSessionReceiveWindow() {
@@ -103,6 +110,7 @@ class ClientConfiguration {
         private int connectTimeout;
         private int compressionLevel;
         private int maxPushStreams;
+        private int maxTcpConnections;
         private int sessionReceiveWindow;
         private int streamReceiveWindow;
         private boolean tcpNoDelay;
@@ -114,6 +122,8 @@ class ClientConfiguration {
             upgradeStrategy = UpgradeStrategy.DIRECT;
             connectTimeout = 60000;
             compressionLevel = 0;
+            maxPushStreams = 0;
+            maxTcpConnections = 1;
             sessionReceiveWindow = 10485760;
             streamReceiveWindow = 10485760;
             tcpNoDelay = false;
@@ -131,6 +141,20 @@ class ClientConfiguration {
 
         public Builder maxPushStreams(int maxPushStreams) {
             this.maxPushStreams = maxPushStreams;
+            return this;
+        }
+
+        /**
+         * Sets the maximum number of concurrent connections to open to a given
+         * origin.
+         *
+         * Note this may apply transiently to multiplexed protocols to achieve
+         * more CWND for requests or open a new session as one is draining. If
+         * different behavior is desired per-protocol, it will be necessary to
+         * configure more than one {@link WhiskeyClient}.
+         */
+        public Builder maxTcpConnections(int maxTcpConnections) {
+            this.maxTcpConnections = maxTcpConnections;
             return this;
         }
 
@@ -177,6 +201,7 @@ class ClientConfiguration {
                 connectTimeout,
                 compressionLevel,
                 maxPushStreams,
+                maxTcpConnections,
                 sessionReceiveWindow,
                 streamReceiveWindow,
                 tcpNoDelay

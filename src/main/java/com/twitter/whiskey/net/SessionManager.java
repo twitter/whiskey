@@ -24,13 +24,11 @@ class SessionManager {
     private final SSLContext sslContext;
     private final UniqueMultiMap<Integer, Socket> pendingSocketMap = new UniqueMultiMap<>();
     private final UniqueMultiMap<Integer, Session> openSessionMap = new UniqueMultiMap<>();
+    private final int parallelism;
     private final boolean secure;
 
     private static final int OFFLINE = -1;
     private static final int GENERIC = 0;
-
-    // TODO: move to per-interface, per-origin configuration
-    private static final int MAX_PARALLELISM = 1;
 
     // TODO: update connectivity via ConnectivityManager/BroadcastReceiver/etc
     // TODO: connect new sockets on connectivity change if requests are pending
@@ -40,6 +38,7 @@ class SessionManager {
 
         this.configuration = configuration;
         this.origin = origin;
+        this.parallelism = configuration.getMaxTcpConnections();
         secure = origin.getScheme().equals("https");
         sslContext = secure ? configuration.getSslContext() : null;
     }
@@ -84,7 +83,7 @@ class SessionManager {
 
         // If parallelism allows, open new socket connection(s).
         openSessionCount = openSessionMap.get(currentConnectivity).size();
-        for (int i = 0; i < MAX_PARALLELISM - openSessionCount; i++) {
+        for (int i = 0; i < parallelism - openSessionCount; i++) {
             createSocket(currentConnectivity);
         }
     }
