@@ -51,6 +51,7 @@ public class SpdyFrameDecoder {
     private final SpdyHeaderBlockDecoder headerBlockDecoder;
     private final int spdyVersion;
     private final int maxChunkSize;
+    private final int minChunkSize;
 
     private State state;
 
@@ -83,13 +84,13 @@ public class SpdyFrameDecoder {
      * and the default {@code maxChunkSize (8192)}.
      */
     public SpdyFrameDecoder(SpdyVersion spdyVersion, SpdyFrameDecoderDelegate delegate) {
-        this(spdyVersion, delegate, 8192);
+        this(spdyVersion, delegate, 8192, 256);
     }
 
     /**
      * Creates a new instance with the specified parameters.
      */
-    public SpdyFrameDecoder(SpdyVersion spdyVersion, SpdyFrameDecoderDelegate delegate, int maxChunkSize) {
+    public SpdyFrameDecoder(SpdyVersion spdyVersion, SpdyFrameDecoderDelegate delegate, int maxChunkSize, int minChunkSize) {
         if (spdyVersion == null) {
             throw new NullPointerException("spdyVersion");
         }
@@ -104,6 +105,7 @@ public class SpdyFrameDecoder {
         this.spdyVersion = spdyVersion.getVersion();
         this.delegate = delegate;
         this.maxChunkSize = maxChunkSize;
+        this.minChunkSize = minChunkSize;
         state = State.READ_COMMON_HEADER;
     }
 
@@ -161,15 +163,13 @@ public class SpdyFrameDecoder {
                         break;
                     }
 
-                    // Generate data frames that do not exceed maxChunkSize
+                    // Generate data frames that do not exceed maxChunkSize and generally exceed
+                    // minChunkSize
                     int bytesToRead = Math.min(maxChunkSize, length);
-
-                    // TODO: consider removing this (and replacing with Math.min) for liveness
-                    // Wait until entire frame is readable
-
-                    if (buffer.remaining() < bytesToRead) {
-                        System.err.println("this happening (unnecessarily) all the time");
-                        return;
+                    int bytesBuffered = buffer.remaining();
+                    if (bytesBuffered < bytesToRead) {
+                        if (bytesBuffered < minChunkSize) return;
+                        bytesToRead = bytesBuffered;
                     }
 
                     ByteBuffer data = ByteBuffer.allocate(bytesToRead);
