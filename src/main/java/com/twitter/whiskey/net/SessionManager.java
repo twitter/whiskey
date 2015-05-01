@@ -165,7 +165,7 @@ class SessionManager {
     private void createSession(final Socket socket) {
 
         final int currentConnectivity = connectivity;
-        Session session;
+        final Session session;
         switch(socket.getProtocol()) {
             case SPDY_3_1:
                 session = new SpdySession(this, configuration, socket);
@@ -175,6 +175,17 @@ class SessionManager {
         }
 
         openSessionMap.put(currentConnectivity, session);
+        session.addCloseListener(new Inline.Listener<Void>() {
+            @Override
+            public void onComplete(Void result) {
+                openSessionMap.removeValue(session);
+            }
+
+            @Override
+            public void onError(Throwable throwable) {
+                openSessionMap.removeValue(session);
+            }
+        });
 
         // TODO: implement load balancing delay
         while (session.getCapacity() > 0 && !pendingOperations.isEmpty()) {

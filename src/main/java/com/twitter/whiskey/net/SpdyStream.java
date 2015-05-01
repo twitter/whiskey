@@ -116,6 +116,10 @@ class SpdyStream {
         closedRemotely = true;
     }
 
+    void closeRetryably(Throwable e) {
+        if (!retry()) close(e);
+    }
+
     void close(Throwable e) {
         closedLocally = true;
         closedRemotely = true;
@@ -338,8 +342,11 @@ class SpdyStream {
 
     private boolean retry() {
         if (receivedReply || !local) return false;
-        operation.retry();
-        return true;
+        if (operation.getRemainingRetries() > 0) {
+            operation.retry();
+            return true;
+        }
+        return false;
     }
 
     /**

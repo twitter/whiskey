@@ -93,12 +93,12 @@ public class SpdyHeaderBlockRawDecoder extends SpdyHeaderBlockDecoder {
                         errorMessage = "received header with negative-length name";
                         state = State.ERROR;
                     } else if (length == 0) {
-                        // TODO: skip frame and issue stream error (MS)
                         errorMessage = "received header with zero-length name";
                         state = State.ERROR;
                     } else if (length > maxHeaderSize || headerSize > maxHeaderSize - length) {
                         headerSize = maxHeaderSize + 1;
                         errorMessage = "header name length is too long";
+                        name = null;
                         state = State.SKIP_NAME;
                     } else {
                         headerSize += length;
@@ -149,7 +149,7 @@ public class SpdyHeaderBlockRawDecoder extends SpdyHeaderBlockDecoder {
                             state = State.READ_NAME_LENGTH;
                         }
 
-                    } else if (length > maxHeaderSize || headerSize > maxHeaderSize - length) {
+                    } else if (name == null || length > maxHeaderSize || headerSize > maxHeaderSize - length) {
                         headerSize = maxHeaderSize + 1;
                         name = null;
                         state = State.SKIP_VALUE;

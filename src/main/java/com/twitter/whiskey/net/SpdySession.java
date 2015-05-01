@@ -46,6 +46,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
     private boolean receivedGoAwayFrame = false;
     private boolean sentGoAwayFrame = false;
     private boolean active = false;
+    private boolean error = false;
 
     SpdySession(SessionManager manager, ClientConfiguration configuration, Socket socket) {
 
@@ -78,6 +79,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
         socket.read(inputBuffer).addListener(new Inline.Listener<ByteBuffer>() {
             @Override
             public void onComplete(ByteBuffer result) {
+                if (inError()) return; // session is unrecoverable, halt decoding
                 frameDecoder.decode(result);
                 result.compact();
                 listen();
@@ -113,6 +115,10 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
     @Override
     public boolean isDisconnected() {
         return !socket.isConnected();
+    }
+
+    private boolean inError() {
+        return error;
     }
 
     @Override
@@ -191,7 +197,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
 
         // Check if session flow control is violated
         if (sessionReceiveWindow < data.remaining()) {
-            closeWithStatus(SPDY_SESSION_PROTOCOL_ERROR);
+            closeWithError(new SpdySessionException("session flow control violatian"));
             return;
         }
 
@@ -281,7 +287,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
      */
 
         if (streamId <= lastGoodStreamId) {
-            closeWithStatus(SPDY_SESSION_PROTOCOL_ERROR);
+            sendRstStream(streamId, SPDY_STREAM_PROTOCOL_ERROR);
             return;
         }
 
@@ -345,6 +351,10 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
 
         if (stream != null) {
             activeStreams.remove(stream);
+            if (statusCode == SPDY_STREAM_REFUSED_STREAM) {
+                stream.closeRetryably(new SpdyStreamException(statusCode));
+                return;
+            }
             stream.close(new SpdyStreamException(statusCode));
         }
     }
@@ -370,7 +380,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
     public void readSetting(int id, int value, boolean persistValue, boolean persisted) {
 
         if (persisted) {
-            closeWithStatus(SPDY_SESSION_PROTOCOL_ERROR);
+            closeWithError(new SpdySessionException("received server-persisted SETTINGS"));
             return;
         }
 
@@ -448,7 +458,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
         for (SpdyStream stream : activeStreams) {
             if (stream.isLocal() && stream.getStreamId() > lastGoodStreamId) {
                 activeStreams.remove(stream);
-                stream.close(new SpdySessionException(statusCode));
+                stream.closeRetryably(new SpdySessionException(statusCode));
             }
         }
     }
@@ -478,7 +488,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
         if (streamId == SPDY_SESSION_STREAM_ID) {
             // Check for numerical overflow
             if (sessionSendWindow > Integer.MAX_VALUE - deltaWindowSize) {
-                closeWithStatus(SPDY_SESSION_PROTOCOL_ERROR);
+                closeWithError(new SpdySessionException("session send window exceeded max value"));
                 return;
             }
 
@@ -502,7 +512,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
         if (stream.getSendWindow() > Integer.MAX_VALUE - deltaWindowSize) {
             sendRstStream(streamId, SPDY_STREAM_FLOW_CONTROL_ERROR);
             activeStreams.remove(stream);
-            stream.close(new SpdyStreamException("flow control error"));
+            stream.close(new SpdyStreamException(SPDY_STREAM_FLOW_CONTROL_ERROR));
         }
 
         stream.increaseSendWindow(deltaWindowSize);
@@ -542,11 +552,17 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
     @Override
     public void readFrameSkipped(int streamId, String message) {
 
+        SpdyStream stream = activeStreams.get(streamId);
+        if (stream != null) {
+            sendRstStream(streamId, SPDY_STREAM_PROTOCOL_ERROR);
+            activeStreams.remove(stream);
+            stream.close(new SpdyProtocolException(message));
+        }
     }
 
     @Override
     public void readFrameError(String message) {
-
+        closeWithError(new SpdyProtocolException(message));
     }
 
     public void sendSynStream(int streamId, byte priority, boolean last, Headers headers) {
@@ -647,8 +663,39 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
         socket.write(frameEncoder.encodePingFrame(pingId)).addListener(logger);
     }
 
-    public void closeWithStatus(int sessionStatus) {
+    private void sendGoAway(int status) {
 
+        if (sentGoAwayFrame) return;
+        sentGoAwayFrame = true;
+
+        Socket.WriteFuture goawayFuture = socket.write(
+            frameEncoder.encodeGoAwayFrame(lastGoodStreamId, status));
+
+        goawayFuture.addListener(new Inline.Listener<Long>() {
+            @Override
+            public void onComplete(Long result) {
+                if (activeStreams.isEmpty()) {
+                    socket.close();
+                }
+            }
+        });
+        goawayFuture.addListener(new WriteLogger(
+            "sent GOAWAY (%d)\n--> Last-Good-Stream-ID = " + lastGoodStreamId +
+                "\n--> Status: " + status
+        ));
+    }
+
+    public void closeWithError(Throwable throwable) {
+
+        error = true;
+        Iterator<SpdyStream> i = activeStreams.iterator();
+        while (i.hasNext()) {
+            SpdyStream stream = i.next();
+            i.remove();
+            stream.close(throwable);
+        }
+        sendGoAway(SPDY_SESSION_PROTOCOL_ERROR);
+        closeFuture.fail(throwable);
     }
 
     private class WriteLogger extends Inline.Listener<Long> {
@@ -686,8 +733,8 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
             Iterator<SpdyStream> i = activeStreams.iterator();
             while (i.hasNext()) {
                 SpdyStream stream = i.next();
-                stream.close(throwable);
                 i.remove();
+                stream.close(throwable);
             }
             closeFuture.fail(throwable);
         }
