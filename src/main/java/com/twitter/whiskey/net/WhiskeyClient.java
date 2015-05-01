@@ -21,10 +21,16 @@ public class WhiskeyClient {
     }
 
     public WhiskeyClient(ClientConfiguration configuration) {
-
         this.configuration = configuration;
     }
 
+    /**
+     * Submits a request for execution. A new {@link RunLoop} will be started
+     * if necessary, and new connections established where required.
+     *
+     * @param request the request to be executed
+     * @return a ResponseFuture tracking progress of the submitted request
+     */
     public ResponseFuture submit(Request request) {
 
         final RequestOperation operation = new RequestOperation(this, request);
@@ -46,6 +52,12 @@ public class WhiskeyClient {
         return operation;
     }
 
+    /**
+     * Enqueues a {@link RequestOperation} on the appropriate {@link SessionManager}.
+     *
+     * May be called more than once on a single operation due to redirects and
+     * retries.
+     */
     void queue(final RequestOperation operation) {
 
         Origin requestOrigin = new Origin(operation.getCurrentRequest().getUrl());
@@ -68,22 +80,63 @@ public class WhiskeyClient {
         RunLoop.instance().startThread();
     }
 
-    public void addAlias(Origin alias, Origin origin) {
-        aliases.put(alias, origin);
+    /**
+     * Adds an alias from one origin to another.
+     *
+     * Requests with a hostname matching the alias will instead be sent over
+     * a connection to the target origin. Host headers will remain unchanged.
+     * If the target origin contains a raw IP address, X.509 certificate
+     * validation for a new connection will be performed using the hostname
+     * of the alias. Otherwise the connection will use the properties of the
+     * target origin for certificate validation.
+     *
+     * Note: this is an advanced feature allowing more than one domain to
+     * be multiplexed over a single connection and/or DNS to be bypassed,
+     * and has security ramifications that should be well understood before
+     * use in a production application.
+     */
+    public void addAlias(Origin alias, Origin target) {
+        aliases.put(alias, target);
     }
 
-    // TODO: rename to shutdown and terminate similar to ExecutorService interface
+    /**
+     * Removes an alias to another origin.
+     */
+    public void removeAlias(Origin alias) {
+        aliases.remove(alias);
+    }
+
+    /**
+     * @return true if this client has been shut down.
+     */
+    public boolean isShutdown() {
+        return false;
+    }
+
+    /**
+     * @return true if all outstanding requests are completed and connections have
+     *         closed following shutdown.
+     */
+    public boolean isTerminated() {
+        return false;
+    }
+
+
+    /**
+     * Attempt to complete all submitted requests, but stop accepting new requests.
+     */
+    public void shutdown() {
+    }
+
     /**
      * Attempt to gracefully cancel all in-flight requests and close all open connections.
      */
-    public void close() {
-
+    public void shutdownNow() {
     }
 
     /**
      * Immediately terminate all connections and fail in-flight requests.
      */
-    public void kill() {
-
+    public void terminate() {
     }
 }
