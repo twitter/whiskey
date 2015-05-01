@@ -546,6 +546,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
 
         if (stream.isClosed()) {
             activeStreams.remove(stream);
+            stream.complete();
         }
     }
 

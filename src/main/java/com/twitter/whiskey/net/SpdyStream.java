@@ -129,6 +129,7 @@ class SpdyStream {
     void complete() {
         if (redirectMethod != null && redirectURL != null) {
             redirect();
+            return;
         }
 
         if (!finalResponse) {

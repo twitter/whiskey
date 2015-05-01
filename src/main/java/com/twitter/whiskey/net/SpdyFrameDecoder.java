@@ -350,6 +350,7 @@ public class SpdyFrameDecoder {
                     if (length == 0) {
                         state = State.READ_COMMON_HEADER;
                         headerBlockDecoder.endHeaderBlock();
+                        delegate.readHeadersEnd(streamId);
                         break;
                     }
 
