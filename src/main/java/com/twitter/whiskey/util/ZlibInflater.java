@@ -66,13 +66,14 @@ public class ZlibInflater extends Inflater {
     private GzipState gzipState = GzipState.HEADER_START;
     private int flags = -1;
     private int xlen = -1;
+    private byte[] xtra;
 
     private volatile boolean finished;
 
     private boolean determineWrapper;
 
     /**
-     * Creates a new instance with the default wrapper ({@link com.twitter.whiskey.ZlibInflater.Wrapper#ZLIB}).
+     * Creates a new instance with the default wrapper ({@link Wrapper#ZLIB}).
      */
     public ZlibInflater() {
         this(Wrapper.ZLIB, null);
@@ -80,7 +81,7 @@ public class ZlibInflater extends Inflater {
 
     /**
      * Creates a new instance with the specified preset dictionary. The wrapper
-     * is always {@link com.twitter.whiskey.ZlibInflater.Wrapper#ZLIB} because it is the only format that
+     * is always {@link Wrapper#ZLIB} because it is the only format that
      * supports the preset dictionary.
      */
     public ZlibInflater(byte[] dictionary) {
@@ -89,8 +90,6 @@ public class ZlibInflater extends Inflater {
 
     /**
      * Creates a new instance with the specified wrapper.
-     * Be aware that only {@link com.twitter.whiskey.ZlibInflater.Wrapper#GZIP}, {@link com.twitter.whiskey.ZlibInflater.Wrapper#ZLIB} and {@link com.twitter.whiskey.ZlibInflater.Wrapper#NONE} are
-     * supported atm.
      */
     public ZlibInflater(Wrapper wrapper) {
         this(wrapper, null);
@@ -104,8 +103,7 @@ public class ZlibInflater extends Inflater {
             case GZIP:
                 inflater = new Inflater(true);
                 crc = new CRC32();
-                // TODO: determine necessary buffer size and growth parameters
-                accumulator = ByteBuffer.allocate(256);
+                accumulator = ByteBuffer.allocate(10);
                 accumulator.flip();
                 break;
             case NONE:
@@ -358,18 +356,17 @@ public class ZlibInflater extends Inflater {
                     crc.update(xlen2);
 
                     xlen |= xlen1 << 8 | xlen2;
+                    if (xlen != -1) {
+                        xtra = new byte[xlen];
+                    }
                 }
                 gzipState = GzipState.XLEN_READ;
             case XLEN_READ:
-                if (xlen != -1) {
-                    if (bytesRemaining() < xlen) {
-                        buffer();
-                        return false;
-                    }
-                    byte[] xtra = new byte[xlen];
-                    readBytes(xtra);
-                    crc.update(xtra);
+                while (xlen > 0) {
+                    if (bytesRemaining() == 0) return false;
+                    xtra[xtra.length - xlen--] = readByte();
                 }
+                if (xlen == 0) crc.update(xtra);
                 gzipState = GzipState.SKIP_FNAME;
             case SKIP_FNAME:
                 if ((flags & FNAME) != 0) {
