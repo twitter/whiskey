@@ -33,7 +33,7 @@ public class LinkedHashDeque<E> extends AbstractCollection<E> implements Deque<E
     private Node<E> tail = head;
     private HashMap<E, Node<E>> map;
     private int size = 0;
-    private volatile int permutations = 0;
+    private volatile int mutations = 0;
 
     public LinkedHashDeque() {
         map = new HashMap<>();
@@ -78,7 +78,7 @@ public class LinkedHashDeque<E> extends AbstractCollection<E> implements Deque<E
     public boolean offerFirst(E e) {
 
         if (map.containsKey(e)) return false;
-        int sentinel = permutations;
+        int sentinel = mutations;
 
         Node<E> node = new Node<E>(e);
 
@@ -93,8 +93,8 @@ public class LinkedHashDeque<E> extends AbstractCollection<E> implements Deque<E
         head.next = node;
 
         size++;
-        if (sentinel != permutations) throw new ConcurrentModificationException();
-        permutations++;
+        if (sentinel != mutations) throw new ConcurrentModificationException();
+        mutations++;
         return true;
     }
 
@@ -102,7 +102,7 @@ public class LinkedHashDeque<E> extends AbstractCollection<E> implements Deque<E
     public boolean offerLast(E e) {
 
         if (map.containsKey(e)) return false;
-        int sentinel = permutations;
+        int sentinel = mutations;
 
         Node<E> node = new Node<E>(e);
 
@@ -111,8 +111,8 @@ public class LinkedHashDeque<E> extends AbstractCollection<E> implements Deque<E
         tail = node;
 
         size++;
-        if (sentinel != permutations) throw new ConcurrentModificationException();
-        permutations++;
+        if (sentinel != mutations) throw new ConcurrentModificationException();
+        mutations++;
         return true;
     }
 
@@ -188,7 +188,7 @@ public class LinkedHashDeque<E> extends AbstractCollection<E> implements Deque<E
         map.clear();
         tail = head;
         size = 0;
-        permutations = 0;
+        mutations = 0;
     }
 
     @Override
@@ -230,7 +230,7 @@ public class LinkedHashDeque<E> extends AbstractCollection<E> implements Deque<E
     @Override
     public boolean remove(Object o) {
 
-        int sentinel = permutations;
+        int sentinel = mutations;
         Node<E> node = map.remove(o);
         if (node == null) return false;
 
@@ -242,8 +242,8 @@ public class LinkedHashDeque<E> extends AbstractCollection<E> implements Deque<E
             map.put(node.next.e, node);
         }
         size--;
-        if (sentinel != permutations) throw new ConcurrentModificationException();
-        permutations++;
+        if (sentinel != mutations) throw new ConcurrentModificationException();
+        mutations++;
         return true;
     }
 
@@ -262,13 +262,13 @@ public class LinkedHashDeque<E> extends AbstractCollection<E> implements Deque<E
     public Iterator<E> iterator() {
         return new Iterator<E>() {
             Node<E> current = head;
-            int sentinel = permutations;
+            int sentinel = mutations;
             E removeable = null;
 
             @Override
             public boolean hasNext() {
-                if (sentinel != permutations) throw new ConcurrentModificationException();
-                return current != tail;
+                if (sentinel != mutations) throw new ConcurrentModificationException();
+                return current.next != null;
             }
 
             @Override
@@ -281,7 +281,7 @@ public class LinkedHashDeque<E> extends AbstractCollection<E> implements Deque<E
 
             @Override
             public void remove() {
-                if (sentinel != permutations) throw new ConcurrentModificationException();
+                if (sentinel != mutations) throw new ConcurrentModificationException();
                 if (removeable == null) throw new IllegalStateException();
                 LinkedHashDeque.this.remove(removeable);
                 sentinel++;
@@ -295,12 +295,12 @@ public class LinkedHashDeque<E> extends AbstractCollection<E> implements Deque<E
     public Iterator<E> descendingIterator() {
         return new Iterator<E>() {
             Node<E> current = tail;
-            int sentinel = permutations;
+            int sentinel = mutations;
             E removeable = null;
 
             @Override
             public boolean hasNext() {
-                if (sentinel != permutations) throw new ConcurrentModificationException();
+                if (sentinel != mutations) throw new ConcurrentModificationException();
                 return current != head;
             }
 
@@ -314,7 +314,7 @@ public class LinkedHashDeque<E> extends AbstractCollection<E> implements Deque<E
 
             @Override
             public void remove() {
-                if (sentinel != permutations) throw new ConcurrentModificationException();
+                if (sentinel != mutations) throw new ConcurrentModificationException();
                 if (removeable == null) throw new IllegalStateException();
                 LinkedHashDeque.this.remove(removeable);
                 sentinel++;

@@ -1,6 +1,8 @@
 package com.twitter.whiskey.util;
 
-import junit.framework.TestCase;
+import static org.junit.Assert.*;
+import org.junit.Before;
+import org.junit.Test;
 
 import java.util.Iterator;
 import java.util.NoSuchElementException;
@@ -8,14 +10,16 @@ import java.util.NoSuchElementException;
 /**
  * @author Michael Schore
  */
-public class LinkedHashDequeTest extends TestCase {
+public class LinkedHashDequeTest {
 
     private LinkedHashDeque<Integer> deque;
 
+    @Before
     public void setUp() {
         deque = new LinkedHashDeque<>();
     }
 
+    @Test
     public void testAdd() {
         assertEquals(0, deque.size());
 
@@ -32,6 +36,7 @@ public class LinkedHashDequeTest extends TestCase {
         assertEquals(3, deque.size());
     }
 
+    @Test
     public void testOfferFirst() {
         assertEquals(0, deque.size());
 
@@ -48,6 +53,7 @@ public class LinkedHashDequeTest extends TestCase {
         assertEquals(3, deque.size());
     }
 
+    @Test
     public void testOfferLast() {
         assertEquals(0, deque.size());
 
@@ -64,6 +70,7 @@ public class LinkedHashDequeTest extends TestCase {
         assertEquals(3, deque.size());
     }
 
+    @Test
     public void testAddFirst() {
         deque.addFirst(1);
         deque.addFirst(2);
@@ -82,6 +89,7 @@ public class LinkedHashDequeTest extends TestCase {
         assertEquals(deque.size(), 3);
     }
 
+    @Test
     public void testAddLast() {
         deque.addLast(1);
         deque.addLast(2);
@@ -100,6 +108,7 @@ public class LinkedHashDequeTest extends TestCase {
         assertEquals(3, deque.size());
     }
 
+    @Test
     public void testRemove() {
         deque.add(1);
         deque.add(2);
@@ -120,6 +129,7 @@ public class LinkedHashDequeTest extends TestCase {
         assertEquals(0, deque.size());
     }
 
+    @Test
     public void testRemoveFirst() {
         deque.addLast(1);
         deque.addLast(2);
@@ -141,6 +151,7 @@ public class LinkedHashDequeTest extends TestCase {
         assertEquals(0, deque.size());
     }
 
+    @Test
     public void testRemoveLast() {
         deque.addFirst(1);
         deque.addFirst(2);
@@ -161,6 +172,7 @@ public class LinkedHashDequeTest extends TestCase {
         assertTrue(exception);
     }
 
+    @Test
     public void testIterator() {
         deque.add(1);
         deque.add(2);
@@ -174,6 +186,33 @@ public class LinkedHashDequeTest extends TestCase {
         assertEquals((Integer) 4, expected);
     }
 
+    @Test
+    public void testIteratorRemove() {
+        deque.add(1);
+        deque.add(2);
+        deque.add(3);
+
+        Iterator<Integer> i = deque.iterator();
+        int expectedValue = 1;
+        int expectedSize = 3;
+        while (i.hasNext()) {
+            assertEquals(expectedSize--, deque.size());
+            assertEquals(expectedValue++, i.next().intValue());
+            i.remove();
+        }
+        assertEquals(0, expectedSize);
+        assertTrue(deque.isEmpty());
+
+        IllegalStateException error = null;
+        try {
+            i.remove();
+        } catch (IllegalStateException e) {
+            error = e;
+        }
+        assertNotNull(error);
+    }
+
+    @Test
     public void testDescendingIterator() {
         deque.add(1);
         deque.add(2);
@@ -186,5 +225,31 @@ public class LinkedHashDequeTest extends TestCase {
             expected--;
         }
         assertEquals((Integer) 0, expected);
+    }
+
+    @Test
+    public void testDescendingIteratorRemove() {
+        deque.add(1);
+        deque.add(2);
+        deque.add(3);
+
+        Iterator<Integer> i = deque.descendingIterator();
+        int expectedValue = 3;
+        int expectedSize = 3;
+        while (i.hasNext()) {
+            assertEquals(expectedSize--, deque.size());
+            assertEquals(expectedValue--, i.next().intValue());
+            i.remove();
+        }
+        assertEquals(0, expectedSize);
+        assertTrue(deque.isEmpty());
+
+        IllegalStateException error = null;
+        try {
+            i.remove();
+        } catch (IllegalStateException e) {
+            error = e;
+        }
+        assertNotNull(error);
     }
 }

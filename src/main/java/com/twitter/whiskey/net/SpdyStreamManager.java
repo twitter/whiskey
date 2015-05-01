@@ -27,7 +27,7 @@ final class SpdyStreamManager extends AbstractCollection<SpdyStream> implements 
 
     private final Map<Integer, SpdyStream> streamMap = new HashMap<>();
 
-    private volatile int permutations = 0;
+    private volatile int mutations = 0;
     private int localSize = 0;
     private int remoteSize = 0;
 
@@ -51,7 +51,7 @@ final class SpdyStreamManager extends AbstractCollection<SpdyStream> implements 
             remoteSize++;
         }
 
-        permutations++;
+        mutations++;
         return true;
     }
 
@@ -62,7 +62,7 @@ final class SpdyStreamManager extends AbstractCollection<SpdyStream> implements 
             streamSet.clear();
         }
         streamMap.clear();
-        permutations = 0;
+        mutations = 0;
         localSize = 0;
         remoteSize = 0;
     }
@@ -111,7 +111,7 @@ final class SpdyStreamManager extends AbstractCollection<SpdyStream> implements 
             remoteSize--;
         }
 
-        permutations++;
+        mutations++;
         return true;
     }
 
@@ -136,7 +136,7 @@ final class SpdyStreamManager extends AbstractCollection<SpdyStream> implements 
 
         SpdyStreamIterator() {
 
-            sentinel = permutations;
+            sentinel = mutations;
             setIndex = 0;
             streamIterator = streamSets[setIndex].iterator();
         }
@@ -144,7 +144,7 @@ final class SpdyStreamManager extends AbstractCollection<SpdyStream> implements 
         @Override
         public boolean hasNext() {
 
-            if (sentinel != permutations) throw new ConcurrentModificationException();
+            if (sentinel != mutations) throw new ConcurrentModificationException();
             if (streamIterator.hasNext()) return true;
 
             while (++setIndex < PRIORITY_LEVELS) {
@@ -169,11 +169,22 @@ final class SpdyStreamManager extends AbstractCollection<SpdyStream> implements 
         @Override
         public void remove() {
 
-            if (sentinel != permutations) throw new ConcurrentModificationException();
+            if (sentinel != mutations) throw new ConcurrentModificationException();
             if (removeable == null) throw new IllegalStateException();
-            SpdyStreamManager.this.remove(removeable);
+
+            streamIterator.remove();
+            final int streamId = removeable.getStreamId();
+            if (streamId > 0) {
+                streamMap.remove(streamId);
+            }
+
+            if (removeable.isLocal()) {
+                localSize--;
+            } else {
+                remoteSize--;
+            }
+
             removeable = null;
-            sentinel++;
         }
     }
 }
