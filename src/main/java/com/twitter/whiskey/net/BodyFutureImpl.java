@@ -61,7 +61,7 @@ class BodyFutureImpl extends ReactiveFuture<ByteBuffer, ByteBuffer> implements B
 
     @Override
     public boolean complete() {
-        body.flip();
+        if (body != null) body.flip();
         return set(body);
     }
 }
