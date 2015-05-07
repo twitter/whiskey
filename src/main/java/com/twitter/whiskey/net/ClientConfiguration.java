@@ -4,15 +4,17 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.SSLContext;
 
-class ClientConfiguration {
+public class ClientConfiguration {
     final private LinkedHashSet<Protocol> protocols;
     final private Protocol preferredProtocol;
     final private UpgradeStrategy upgradeStrategy;
     final private SSLContext sslContext;
-    final private int connectTimeout;
+    final private TimeUnit connectTimeoutUnit;
+    final private long connectTimeout;
     final private int compressionLevel;
     final private int maxPushStreams;
     final private int maxTcpConnections;
@@ -24,7 +26,8 @@ class ClientConfiguration {
         List<Protocol> protocols,
         UpgradeStrategy upgradeStrategy,
         SSLContext sslContext,
-        int connectTimeout,
+        TimeUnit connectTimeoutUnit,
+        long connectTimeout,
         int compressionLevel,
         int maxPushStreams,
         int maxTcpConnections,
@@ -36,6 +39,7 @@ class ClientConfiguration {
         preferredProtocol = protocols.get(0);
         this.upgradeStrategy = upgradeStrategy;
         this.sslContext = sslContext;
+        this.connectTimeoutUnit = connectTimeoutUnit;
         this.connectTimeout = connectTimeout;
         this.compressionLevel = compressionLevel;
         this.maxPushStreams = maxPushStreams;
@@ -45,7 +49,8 @@ class ClientConfiguration {
         this.tcpNoDelay = tcpNoDelay;
     }
 
-    public int getConnectTimeout() {
+    // TODO: respect connect timeouts
+    public long getConnectTimeout() {
         return connectTimeout;
     }
 
@@ -85,6 +90,10 @@ class ClientConfiguration {
         return sslContext;
     }
 
+    public TimeUnit getConnectTimeoutUnit() {
+        return connectTimeoutUnit;
+    }
+
     /**
      * The upgrade strategy to use when negotiating the protocol for a connection.
      *
@@ -107,7 +116,8 @@ class ClientConfiguration {
         private List<Protocol> protocols;
         private UpgradeStrategy upgradeStrategy;
         private SSLContext sslContext;
-        private int connectTimeout;
+        private TimeUnit connectTimeoutUnit;
+        private long connectTimeout;
         private int compressionLevel;
         private int maxPushStreams;
         private int maxTcpConnections;
@@ -120,6 +130,7 @@ class ClientConfiguration {
             protocols = new ArrayList<>(1);
             protocols.add(Protocol.SPDY_3_1);
             upgradeStrategy = UpgradeStrategy.DIRECT;
+            connectTimeoutUnit = TimeUnit.MILLISECONDS;
             connectTimeout = 60000;
             compressionLevel = 0;
             maxPushStreams = 0;
@@ -129,8 +140,9 @@ class ClientConfiguration {
             tcpNoDelay = false;
         }
 
-        public Builder connectTimeout(int connectTimeout) {
+        public Builder connectTimeout(long connectTimeout, TimeUnit unit) {
             this.connectTimeout = connectTimeout;
+            connectTimeoutUnit = unit;
             return this;
         }
 
@@ -198,6 +210,7 @@ class ClientConfiguration {
                 protocols,
                 upgradeStrategy,
                 sslContext,
+                connectTimeoutUnit,
                 connectTimeout,
                 compressionLevel,
                 maxPushStreams,

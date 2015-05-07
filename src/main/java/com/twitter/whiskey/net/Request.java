@@ -55,6 +55,7 @@ public class Request {
         this.timeoutUnit = timeoutUnit;
     }
 
+    // TODO: use URI instead of URL
     public URL getUrl() {
         return url;
     }

@@ -191,7 +191,7 @@ public abstract class ReactiveFuture<T, E> extends CompletableFuture<T> implemen
             }
         }
 
-        i = new StreamingIterator(Collections.<E>emptyIterator());
+        i = new StreamingIterator(null);
         iterators.add(i);
         return i;
     }
@@ -212,7 +212,7 @@ public abstract class ReactiveFuture<T, E> extends CompletableFuture<T> implemen
         @Override
         public boolean hasNext() {
 
-            if (drained.hasNext() || (currentElement != null && currentElement != SENTINEL)) {
+            if ((drained != null && drained.hasNext()) || (currentElement != null && currentElement != SENTINEL)) {
                 return true;
             }
 
