@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2015 Twitter, Inc. All rights reserved.
+ * Licensed under the Apache License v2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
+ */
+
 package com.twitter.whiskey.nio;
 
 import com.twitter.whiskey.futures.CompletableFuture;
@@ -15,7 +21,6 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.concurrent.TimeUnit;
-
 
 public class Socket extends Selectable {
 
