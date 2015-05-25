@@ -18,6 +18,9 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.zip.DataFormatException;
 
+/**
+ * @author Michael Schore
+ */
 class SpdyStream {
 
     private static final Set<String> INVALID_HEADERS;

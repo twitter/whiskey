@@ -21,6 +21,12 @@ import java.util.Deque;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 
+/**
+ * Per-client, per-origin manager of sessions/connections for handling
+ * HTTP requests via supported protocols.
+ *
+ * @author Michael Schore
+ */
 class SessionManager {
 
     private final Origin origin;

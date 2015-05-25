@@ -23,6 +23,9 @@ import java.util.zip.DataFormatException;
 
 import static com.twitter.whiskey.net.SpdyConstants.*;
 
+/**
+ * @author Michael Schore
+ */
 class SpdySession implements Session, SpdyFrameDecoderDelegate {
 
     private static final Map<Origin, SpdySettings> storedSettings = new HashMap<>();

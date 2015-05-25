@@ -8,6 +8,9 @@ package com.twitter.whiskey.futures;
 
 import java.util.concurrent.Executor;
 
+/**
+ * @author Michael Schore
+ */
 public interface Observer<E> {
     public void onComplete();
     public void onNext(E element);

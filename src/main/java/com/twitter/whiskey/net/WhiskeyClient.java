@@ -15,6 +15,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 /**
+ * The primary public interface for the Whiskey library.
+ *
+ * Instantiate, optionally with a custom {@link ClientConfiguration}, and use
+ * to issue HTTP requests asynchronously.
+ *
+ * Through the use of Futures provided upon submission, responses may be
+ * consumed streaming or atomically, in a blocking or non-blocking fashion.
+ *
  * @author Michael Schore
  */
 public class WhiskeyClient {

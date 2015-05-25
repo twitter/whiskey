@@ -6,6 +6,9 @@
 
 package com.twitter.whiskey.net;
 
+/**
+ * @author Michael Schore
+ */
 public class RequestStats {
 
     public Protocol protocol;

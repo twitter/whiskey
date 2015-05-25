@@ -11,6 +11,8 @@ import java.nio.channels.SelectionKey;
 
 /**
  * Interface used by {@link RunLoop} to notify implementations of state changes.
+ *
+ * @author Michael Schore
  */
 abstract class Selectable {
 

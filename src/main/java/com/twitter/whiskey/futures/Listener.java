@@ -8,6 +8,9 @@ package com.twitter.whiskey.futures;
 
 import java.util.concurrent.Executor;
 
+/**
+ * @author Michael Schore
+ */
 public interface Listener<T> {
     public void onComplete(T result);
     public void onError(Throwable throwable);

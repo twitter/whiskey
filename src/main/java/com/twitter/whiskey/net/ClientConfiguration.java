@@ -14,6 +14,9 @@ import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.SSLContext;
 
+/**
+ * @author Michael Schore
+ */
 public class ClientConfiguration {
     final private LinkedHashSet<Protocol> protocols;
     final private Protocol preferredProtocol;

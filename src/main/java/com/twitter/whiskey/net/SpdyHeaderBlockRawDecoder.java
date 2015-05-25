@@ -12,6 +12,9 @@ package com.twitter.whiskey.net;
 import java.nio.ByteBuffer;
 import static com.twitter.whiskey.net.SpdyCodecUtil.*;
 
+/**
+ * @author Michael Schore
+ */
 public class SpdyHeaderBlockRawDecoder extends SpdyHeaderBlockDecoder {
 
     private static final int LENGTH_FIELD_SIZE = 4;

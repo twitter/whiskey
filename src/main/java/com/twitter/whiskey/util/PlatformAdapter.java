@@ -10,6 +10,10 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
 // TODO: use to acquire instances of specific utility objects, e.g. Clock
+
+/**
+ * @author Bill Gallagher
+ */
 public abstract class PlatformAdapter {
 
     private static final PlatformAdapter INSTANCE = establishPlatform();

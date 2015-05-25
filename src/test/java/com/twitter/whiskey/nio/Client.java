@@ -12,6 +12,9 @@ import javax.net.ssl.X509TrustManager;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 
+/**
+ * @author Bill Gallagher
+ */
 public class Client {
 
     public static void main(String[] args) throws Exception {

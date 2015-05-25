@@ -16,6 +16,12 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * An HTTP request. Use of the public internal Builder class is recommended
+ * for construction.
+ *
+ * @author Michael Schore
+ */
 public class Request {
     private final URL url;
     private final Request.Method method;

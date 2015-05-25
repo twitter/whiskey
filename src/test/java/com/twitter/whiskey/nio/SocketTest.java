@@ -28,6 +28,9 @@ import java.util.Collection;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 
+/**
+ * @author Bill Gallagher
+ */
 @RunWith(Parameterized.class)
 public class SocketTest {
 

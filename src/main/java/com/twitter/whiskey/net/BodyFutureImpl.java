@@ -14,6 +14,8 @@ import java.util.LinkedList;
 import java.util.List;
 
 /**
+ * Internal implementation of BodyFuture.
+ *
  * @author Michael Schore
  */
 class BodyFutureImpl extends ReactiveFuture<ByteBuffer, ByteBuffer> implements BodyFuture {

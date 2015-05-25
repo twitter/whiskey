@@ -18,7 +18,6 @@ import java.util.HashMap;
  *
  * @author Michael Schore
  */
-
 public class Headers extends AbstractMultiMap<String, String> {
 
     public static final String ACCEPT = "accept";

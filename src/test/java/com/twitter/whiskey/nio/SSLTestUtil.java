@@ -12,6 +12,9 @@ import java.io.InputStream;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 
+/**
+ * @author Bill Gallagher
+ */
 final class SSLTestUtil {
 
     private static final String KEY_STORE_PATH = "/certs/cert.ks";

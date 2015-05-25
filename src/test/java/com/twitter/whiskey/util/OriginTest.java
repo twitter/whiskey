@@ -12,6 +12,9 @@ import org.junit.Test;
 import java.net.MalformedURLException;
 import java.net.URL;
 
+/**
+ * @author Bill Gallagher
+ */
 public final class OriginTest {
 
     @Test

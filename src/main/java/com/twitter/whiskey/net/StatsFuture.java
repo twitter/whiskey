@@ -8,5 +8,8 @@ package com.twitter.whiskey.net;
 
 import com.twitter.whiskey.futures.ListenableFuture;
 
+/**
+ * @author Michael Schore
+ */
 public interface StatsFuture extends ListenableFuture<RequestStats> {
 }

@@ -10,12 +10,6 @@ import com.twitter.whiskey.futures.Listener;
 
 /**
  * @author Michael Schore
- *
- * Session states: OPEN = [CONNECTED, ACTIVE], CLOSED = [DRAINING, DISCONNECTED]
- * CONNECTED: all sessions start in this state with a connected socket
- * ACTIVE: a session becomes active when it successfully retrieves a complete http response
- * DRAINING: the session is still connected and handling in-flight requests, but will accepat no further new requests
- * DISCONNECTED: the underlying socket is disconnected
  */
 interface Session {
     /**

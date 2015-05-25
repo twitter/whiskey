@@ -12,6 +12,9 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.security.GeneralSecurityException;
 
+/**
+ * @author Bill Gallagher
+ */
 final class SSLEchoServer extends EchoServer {
 
     SSLEchoServer(int port) throws IOException {

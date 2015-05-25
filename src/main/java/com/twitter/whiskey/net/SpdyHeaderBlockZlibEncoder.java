@@ -14,6 +14,9 @@ import java.util.zip.Deflater;
 
 import static com.twitter.whiskey.net.SpdyCodecUtil.*;
 
+/**
+ * @author Michael Schore
+ */
 class SpdyHeaderBlockZlibEncoder extends SpdyHeaderBlockRawEncoder {
 
     private final Deflater compressor;

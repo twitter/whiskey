@@ -21,6 +21,9 @@ import java.util.Set;
 
 import static com.twitter.whiskey.net.SpdyConstants.PRIORITY_LEVELS;
 
+/**
+ * @author Michael Schore
+ */
 final class SpdyStreamManager extends AbstractCollection<SpdyStream> implements Set<SpdyStream> {
 
     @SuppressWarnings("unchecked")

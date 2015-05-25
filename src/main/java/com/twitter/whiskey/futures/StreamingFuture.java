@@ -8,5 +8,8 @@ package com.twitter.whiskey.futures;
 
 import java.util.concurrent.Future;
 
+/**
+ * @author Michael Schore
+ */
 public interface StreamingFuture<T, E> extends Future<T>, Iterable<E> {
 }

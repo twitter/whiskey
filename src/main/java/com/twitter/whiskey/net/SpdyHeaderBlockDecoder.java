@@ -11,6 +11,9 @@ package com.twitter.whiskey.net;
 
 import java.nio.ByteBuffer;
 
+/**
+ * @author Michael Schore
+ */
 abstract class SpdyHeaderBlockDecoder {
 
     /**

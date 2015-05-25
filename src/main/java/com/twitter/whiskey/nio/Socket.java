@@ -22,6 +22,10 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * @author Michael Schore
+ * @author Bill Gallagher
+ */
 public class Socket extends Selectable {
 
     private final Origin origin;

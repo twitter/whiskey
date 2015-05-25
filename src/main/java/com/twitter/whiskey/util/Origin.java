@@ -8,6 +8,9 @@ package com.twitter.whiskey.util;
 
 import java.net.URL;
 
+/**
+ * @author Michael Schore
+ */
 public final class Origin {
     private final String host;
     private final String scheme;

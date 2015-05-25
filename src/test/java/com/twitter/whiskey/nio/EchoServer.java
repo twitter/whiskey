@@ -17,6 +17,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 
+/**
+ * @author Bill Gallagher
+ */
 class EchoServer {
 
     private final static int NUM_THREADS = 5;

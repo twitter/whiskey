@@ -6,6 +6,9 @@
 
 package com.twitter.whiskey.net;
 
+/**
+ * @author Michael Schore
+ */
 public class SpdyConstants {
     static final int PRIORITY_LEVELS = 8;
     static final int SPDY_SESSION_STREAM_ID = 0;

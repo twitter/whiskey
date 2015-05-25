@@ -8,5 +8,10 @@ package com.twitter.whiskey.net;
 
 import com.twitter.whiskey.futures.ObservableFuture;
 
+/**
+ * Future representing the headers of an HTTP response.
+ *
+ * @author Michael Schore
+ */
 public interface HeadersFuture extends ObservableFuture<Headers, Header> {
 }

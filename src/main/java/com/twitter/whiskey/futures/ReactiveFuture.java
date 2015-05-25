@@ -12,6 +12,9 @@ import java.util.NoSuchElementException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
+/**
+ * @author Michael Schore
+ */
 public abstract class ReactiveFuture<T, E> extends CompletableFuture<T> implements ObservableFuture<T, E> {
 
     private static final Object SENTINEL = new Object();

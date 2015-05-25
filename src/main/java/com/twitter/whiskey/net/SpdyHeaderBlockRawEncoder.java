@@ -15,6 +15,9 @@ import java.util.Set;
 
 import static com.twitter.whiskey.net.SpdyCodecUtil.SPDY_MAX_NV_LENGTH;
 
+/**
+ * @author Michael Schore
+ */
 public class SpdyHeaderBlockRawEncoder extends SpdyHeaderBlockEncoder {
 
     public SpdyHeaderBlockRawEncoder(SpdyVersion version) {

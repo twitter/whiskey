@@ -19,6 +19,9 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 
+/**
+ * @author Bill Gallagher
+ */
 public final class SSLSocket extends Socket {
 
     private static final ByteBuffer[] EMPTY_BUFFER_ARRAY = new ByteBuffer[0];
