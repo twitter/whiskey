@@ -26,30 +26,16 @@ public abstract class ReactiveFuture<T, E> extends CompletableFuture<T> implemen
 
     public boolean provide(final E element) throws RuntimeException {
 
-        if (isDone()) {
-            if (isCancelled()) {
-                return false;
-            } else {
-                throw new RuntimeException("progress cannot be updated once future is fulfilled");
-            }
-        }
+        if (isDone()) return false;
 
         synchronized(this) {
-            if (isDone()) {
-                if (isCancelled()) {
-                    return false;
-                } else {
-                    throw new RuntimeException("progress cannot be updated once future is fulfilled");
-                }
-            }
-
+            if (isDone()) return false;
             if (!streaming || (observers.isEmpty() && iterators.isEmpty())) {
                 accumulate(element);
                 return true;
             }
 
             dispatch(element);
-
             return true;
         }
     }
@@ -105,6 +91,7 @@ public abstract class ReactiveFuture<T, E> extends CompletableFuture<T> implemen
     protected abstract boolean complete();
 
     private void dispatch(final E element) {
+
         for (final Observer<E> observer : observers) {
             observer.getExecutor().execute(new Runnable() {
                 @Override
@@ -113,7 +100,6 @@ public abstract class ReactiveFuture<T, E> extends CompletableFuture<T> implemen
                 }
             });
         }
-
         for (final StreamingIterator iterator : iterators) {
             iterator.queue(element);
         }
@@ -134,7 +120,6 @@ public abstract class ReactiveFuture<T, E> extends CompletableFuture<T> implemen
                         }
                     });
                 }
-
                 for (final StreamingIterator iterator : iterators) {
                     iterator.queue(SENTINEL);
                 }
@@ -150,7 +135,6 @@ public abstract class ReactiveFuture<T, E> extends CompletableFuture<T> implemen
     public void addObserver(final Observer<E> observer) {
 
         synchronized (this) {
-
             observers.add(observer);
 
             if (streaming && !drained) {
@@ -190,6 +174,7 @@ public abstract class ReactiveFuture<T, E> extends CompletableFuture<T> implemen
                 if (streaming && !drained) {
                     drained = true;
                     i = new StreamingIterator(drain().iterator());
+                    if (isDone()) i.queue(SENTINEL);
                     iterators.add(i);
                     return i;
                 }
@@ -197,11 +182,13 @@ public abstract class ReactiveFuture<T, E> extends CompletableFuture<T> implemen
         }
 
         i = new StreamingIterator(null);
+        if (isDone()) i.queue(SENTINEL);
         iterators.add(i);
         return i;
     }
 
     private class StreamingIterator implements Iterator<E> {
+
         private BlockingQueue<Object> queue = new LinkedBlockingQueue<>();
         private Iterator<E> drained;
         Object currentElement;

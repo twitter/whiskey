@@ -27,23 +27,10 @@ public class CompletableFuture<T> implements ListenableFuture<T> {
 
     public boolean set(final T result) {
 
-        if (done) {
-            if (cancelled) {
-                return false;
-            } else {
-                throw new RuntimeException("cannot be set after completion");
-            }
-        }
+        if (done) return false;
 
         synchronized(this) {
-            if (done) {
-                if (cancelled) {
-                    return false;
-                } else {
-                    throw new RuntimeException("cannot be set after completion");
-                }
-            }
-
+            if (done) return false;
             this.result = result;
             done = true;
 
@@ -63,23 +50,10 @@ public class CompletableFuture<T> implements ListenableFuture<T> {
 
     public boolean fail(final Throwable throwable) {
 
-        if (done) {
-            if (cancelled) {
-                return false;
-            } else {
-                throw new RuntimeException("cannot be failed after completion");
-            }
-        }
+        if (done) return false;
 
         synchronized(this) {
-            if (done) {
-                if (cancelled) {
-                    return false;
-                } else {
-                    throw new RuntimeException("cannot be failed after completion");
-                }
-            }
-
+            if (done) return false;
             error = throwable;
             done = true;
 
@@ -100,15 +74,10 @@ public class CompletableFuture<T> implements ListenableFuture<T> {
     @Override
     public boolean cancel(boolean mayInterruptIfRunning) {
 
-        if (done) {
-            return false;
-        }
+        if (done) return false;
 
         synchronized(this) {
-            if (done) {
-                return false;
-            }
-
+            if (done) return false;
             cancelled = true;
             done = true;
 
@@ -139,11 +108,10 @@ public class CompletableFuture<T> implements ListenableFuture<T> {
 
     @Override
     public T get() throws InterruptedException, ExecutionException {
+
         if (!done) {
             synchronized(this) {
-                if (!done) {
-                    wait();
-                }
+                if (!done) wait();
             }
         }
 
@@ -160,11 +128,10 @@ public class CompletableFuture<T> implements ListenableFuture<T> {
 
     @Override
     public T get(long timeout, @NonNull TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
+
         if (!done) {
             synchronized(this) {
-                if (!done) {
-                    wait(unit.toMillis(timeout));
-                }
+                if (!done) wait(unit.toMillis(timeout));
             }
         }
 
