@@ -20,6 +20,8 @@ import java.util.ArrayList;
 import java.util.Deque;
 
 /**
+ * An asynchronous TLS socket interface.
+ *
  * @author Bill Gallagher
  */
 public final class SSLSocket extends Socket {

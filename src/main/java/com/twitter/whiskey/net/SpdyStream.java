@@ -19,6 +19,9 @@ import java.util.Set;
 import java.util.zip.DataFormatException;
 
 /**
+ * Represents a SPDY stream and is responsible for providing updates to
+ * an associated {@link RequestOperation}.
+ *
  * @author Michael Schore
  */
 class SpdyStream {

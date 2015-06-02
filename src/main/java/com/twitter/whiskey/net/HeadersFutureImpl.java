@@ -9,6 +9,8 @@ package com.twitter.whiskey.net;
 import com.twitter.whiskey.futures.ReactiveFuture;
 
 /**
+ * Internal implementation of a {@link HeadersFuture}.
+ *
  * @author Michael Schore
  */
 public class HeadersFutureImpl extends ReactiveFuture<Headers, Header> implements HeadersFuture {

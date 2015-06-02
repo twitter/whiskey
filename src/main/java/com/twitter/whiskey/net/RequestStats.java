@@ -7,6 +7,9 @@
 package com.twitter.whiskey.net;
 
 /**
+ * Simple struct for providing metrics related to the handling of a
+ * {@link Request}.
+ *
  * @author Michael Schore
  */
 public class RequestStats {

@@ -9,6 +9,8 @@ package com.twitter.whiskey.net;
 import com.twitter.whiskey.futures.CompletableFuture;
 
 /**
+ * Internal implementation of a {@link StatsFuture}.
+ *
  * @author Michael Schore
  */
 public class StatsFutureImpl extends CompletableFuture<RequestStats> implements StatsFuture {

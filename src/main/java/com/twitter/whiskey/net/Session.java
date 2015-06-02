@@ -9,6 +9,8 @@ package com.twitter.whiskey.net;
 import com.twitter.whiskey.futures.Listener;
 
 /**
+ * Protocol-specific wrapper for an underlying transport (e.g. TCP) connection.
+ *
  * @author Michael Schore
  */
 interface Session {

@@ -22,6 +22,9 @@ import java.util.Set;
 import static com.twitter.whiskey.net.SpdyConstants.PRIORITY_LEVELS;
 
 /**
+ * Convenience collection for managing {@link SpdyStream}s supporting
+ * iteration by priority and efficient lookups by both object and id.
+ *
  * @author Michael Schore
  */
 final class SpdyStreamManager extends AbstractCollection<SpdyStream> implements Set<SpdyStream> {

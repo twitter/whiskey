@@ -12,6 +12,11 @@ import com.twitter.whiskey.util.PlatformAdapter;
 import java.util.concurrent.ExecutionException;
 
 /**
+ * Internal object tracking the complete lifecycle of an HTTP request.  May
+ * span multiple redirects and/or attempts. Also functions as the internal
+ * implementation of the {@link ResponseFuture} used to provide feedback
+ * and return results to the application.
+ *
  * @author Michael Schore
  */
 class RequestOperation extends CompletableFuture<Response> implements ResponseFuture {

@@ -9,6 +9,12 @@ package com.twitter.whiskey.net;
 import com.twitter.whiskey.futures.ListenableFuture;
 
 /**
+ * {@link ListenableFuture} wrapping an HTTP response. Also provides access to
+ * {@link com.twitter.whiskey.futures.StreamingFuture}s representing both the
+ * {@link Headers} and body of the eventual response, allowing for flexible
+ * interaction with the in-flight operation. All methods are thread-safe and
+ * may be called immediately upon receipt of the object.
+ *
  * @author Michael Schore
  */
 public interface ResponseFuture extends ListenableFuture<Response> {

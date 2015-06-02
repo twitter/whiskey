@@ -10,6 +10,9 @@ import java.util.concurrent.Future;
 
 /**
  * @author Michael Schore
+ * @param <T> the resulting type that this Future wraps
+ * @param <E> units of progress or components of a final result produced
+ *            prior to the Future's completion
  */
 public interface StreamingFuture<T, E> extends Future<T>, Iterable<E> {
 }

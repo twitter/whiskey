@@ -24,6 +24,9 @@ import java.util.zip.DataFormatException;
 import static com.twitter.whiskey.net.SpdyConstants.*;
 
 /**
+ * SPDY-specific implementation of {@link Session}. Logically represents a
+ * session as described in the SPDY draft protocol.
+ *
  * @author Michael Schore
  */
 class SpdySession implements Session, SpdyFrameDecoderDelegate {

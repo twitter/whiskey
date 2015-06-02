@@ -11,7 +11,7 @@ import java.util.Set;
 import java.util.TreeMap;
 
 /**
- * A SPDY Protocol SETTINGS Frame
+ * Represents SPDY session settings as encoded in a SETTINGS frame.
  */
 class SpdySettings {
 

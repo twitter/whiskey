@@ -22,7 +22,7 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 
 /**
- * Per-client, per-origin manager of sessions/connections for handling
+ * Per-client, per-origin manager of {@link Session}s for handling
  * HTTP requests via supported protocols.
  *
  * @author Michael Schore

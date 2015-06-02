@@ -9,6 +9,8 @@ package com.twitter.whiskey.net;
 import com.twitter.whiskey.futures.ListenableFuture;
 
 /**
+ * Future representing eventual request metrics.
+ *
  * @author Michael Schore
  */
 public interface StatsFuture extends ListenableFuture<RequestStats> {

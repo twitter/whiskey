@@ -15,6 +15,9 @@ import java.util.concurrent.TimeUnit;
 import javax.net.ssl.SSLContext;
 
 /**
+ * Used when instantiationg a {@link WhiskeyClient} to specify connection
+ * and protocol-related configuration.
+ *
  * @author Michael Schore
  */
 public class ClientConfiguration {

@@ -15,6 +15,8 @@ import java.util.Map;
 import java.util.TimeZone;
 
 /**
+ * Represents an HTTP header name-value pair.
+ *
  * @author Michael Schore
  */
 public class Header extends AbstractMap.SimpleImmutableEntry<String, String> {

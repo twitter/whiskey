@@ -9,6 +9,8 @@ package com.twitter.whiskey.net;
 import java.nio.ByteBuffer;
 
 /**
+ * Represents a completed HTTP response.
+ *
  * @author Michael Schore
  */
 public class Response {

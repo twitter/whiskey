@@ -16,6 +16,9 @@ import java.nio.ByteBuffer;
  */
 abstract class SpdyHeaderBlockEncoder {
 
+    /**
+     * Encodes SPDY {@link Headers} into a {@link ByteBuffer}.
+     */
     abstract ByteBuffer encode(Headers headers) throws Exception;
     abstract void end();
 }

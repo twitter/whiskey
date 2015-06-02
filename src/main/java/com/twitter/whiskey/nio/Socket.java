@@ -23,6 +23,8 @@ import java.util.Deque;
 import java.util.concurrent.TimeUnit;
 
 /**
+ * An asynchronous TCP socket interface.
+ *
  * @author Michael Schore
  * @author Bill Gallagher
  */
