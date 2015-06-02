@@ -6,19 +6,19 @@
 
 package com.twitter.whiskey.net;
 
-import com.twitter.whiskey.util.AbstractMultiMap;
+import com.twitter.whiskey.util.ListMultiMap;
 
-import java.util.ArrayDeque;
 import java.util.Collection;
-import java.util.Deque;
 import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
 
 /**
- * Multimap for managing HTTP headers.
+ * A {@link com.twitter.whiskey.util.MultiMap} for managing HTTP headers.
  *
  * @author Michael Schore
  */
-public class Headers extends AbstractMultiMap<String, String> {
+public class Headers extends ListMultiMap<String, String> {
 
     public static final String ACCEPT = "accept";
     public static final String ACCEPT_CHARSET = "accept-charset";
@@ -65,8 +65,8 @@ public class Headers extends AbstractMultiMap<String, String> {
     }
 
     @Override
-    protected Deque<String> constructDeque(int initialCapacity) {
-        return new ArrayDeque<>(initialCapacity);
+    protected List<String> newCollection(int initialCapacity) {
+        return new LinkedList<>();
     }
 
     @Override
@@ -77,7 +77,7 @@ public class Headers extends AbstractMultiMap<String, String> {
     private class HeaderCollection extends EntryCollection<Header> {
 
         @Override
-        protected Header constructEntry(String key, String value) {
+        protected Header newEntry(String key, String value) {
             return new Header(key, value);
         }
     }

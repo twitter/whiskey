@@ -19,7 +19,7 @@ import java.util.Map;
  *
  * @author Michael Schore
  */
-public class UniqueMultiMap<K, V> extends AbstractMultiMap<K, V> {
+public class UniqueMultiMap<K, V> extends DequeMultiMap<K, V> {
     private Map<V, K> inverse = new HashMap<>();
     private DefaultEntryCollection entries = new DefaultEntryCollection();
 
@@ -66,7 +66,7 @@ public class UniqueMultiMap<K, V> extends AbstractMultiMap<K, V> {
         K key = inverse.remove(value);
         if (key == null) return null;
 
-        Deque<V> values = getDeque(key);
+        Deque<V> values = map.get(key);
         if (!values.remove(value)) throw new IllegalStateException();
         size--;
         if (sentinel != mutations++) throw new ConcurrentModificationException();
@@ -78,25 +78,7 @@ public class UniqueMultiMap<K, V> extends AbstractMultiMap<K, V> {
     }
 
     @Override
-    protected Deque<V> constructDeque(int initialCapacity) {
-        return new LinkedHashDeque<V>(initialCapacity) {
-            public boolean add(V v) {
-                if (super.add(v)) {
-                    size++;
-                    mutations++;
-                    return true;
-                }
-                return false;
-            }
-
-            public boolean remove(Object o) {
-                if (super.remove(o)) {
-                    size--;
-                    mutations--;
-                    return true;
-                }
-                return  false;
-            }
-        };
+    protected Deque<V> newCollection(int initialCapacity) {
+        return new LinkedHashDeque<>(initialCapacity);
     }
 }
