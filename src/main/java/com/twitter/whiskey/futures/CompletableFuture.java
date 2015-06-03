@@ -6,8 +6,6 @@
 
 package com.twitter.whiskey.futures;
 
-import android.support.annotation.NonNull;
-
 import java.util.ArrayList;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
@@ -132,7 +130,7 @@ public class CompletableFuture<T> implements ListenableFuture<T> {
     }
 
     @Override
-    public T get(long timeout, @NonNull TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
+    public T get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
 
         if (!done) {
             synchronized(this) {

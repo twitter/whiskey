@@ -6,8 +6,6 @@
 
 package com.twitter.whiskey.nio;
 
-import android.support.annotation.NonNull;
-
 import com.twitter.whiskey.util.Clock;
 import com.twitter.whiskey.util.DefaultClock;
 
@@ -85,7 +83,7 @@ public class RunLoop implements Executor {
      * Executes the runnable on the internal RunLoopThread, waking the selector if necessary.
      */
     @Override
-    public void execute(@NonNull Runnable command) {
+    public void execute(Runnable command) {
         tasks.add(command);
         // We don't need to perform the CAS unless we're already selecting, due to the check
         // prior to entering a blocking select for tasks in the task queue.
@@ -101,7 +99,7 @@ public class RunLoop implements Executor {
      * @param delay the delay to wait before execution
      * @param unit time unit of the specified delay
      */
-    public void schedule(@NonNull Runnable command, long delay, @NonNull TimeUnit unit) {
+    public void schedule(Runnable command, long delay, TimeUnit unit) {
         schedule(command, delay, 0, unit);
     }
 
@@ -115,7 +113,7 @@ public class RunLoop implements Executor {
      *                  much additional time may have passed.
      * @param unit time unit of both the specified delay and tolerance
      */
-    public void schedule(@NonNull Runnable command, long delay, long tolerance, @NonNull TimeUnit unit) {
+    public void schedule(Runnable command, long delay, long tolerance, TimeUnit unit) {
 
         if (delay < 0 || tolerance < 0) {
             throw new IllegalArgumentException();

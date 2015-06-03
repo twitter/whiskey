@@ -6,8 +6,6 @@
 
 package com.twitter.whiskey.util;
 
-import android.support.annotation.NonNull;
-
 import java.util.AbstractCollection;
 import java.util.AbstractMap;
 import java.util.Collection;
@@ -239,7 +237,6 @@ public abstract class AbstractMultiMap<K, V, C extends Collection<V>, G extends 
         }
 
         @Override
-        @NonNull
         public Iterator<E> iterator() {
             return new Iterator<E>() {
                 Iterator<Map.Entry<K, G>> entryIterator = map.entrySet().iterator();

@@ -6,8 +6,6 @@
 
 package com.twitter.whiskey.net;
 
-import android.support.annotation.NonNull;
-
 import com.twitter.whiskey.util.LinkedHashDeque;
 
 import java.util.AbstractCollection;
@@ -93,7 +91,6 @@ final class SpdyStreamManager extends AbstractCollection<SpdyStream> implements 
         return streamMap.get(streamId);
     }
 
-    @NonNull
     @Override
     public Iterator<SpdyStream> iterator() {
 

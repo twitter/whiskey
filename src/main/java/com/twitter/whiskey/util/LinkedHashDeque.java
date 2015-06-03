@@ -6,8 +6,6 @@
 
 package com.twitter.whiskey.util;
 
-import android.support.annotation.NonNull;
-
 import java.util.AbstractCollection;
 import java.util.ConcurrentModificationException;
 import java.util.Deque;
@@ -263,7 +261,6 @@ public class LinkedHashDeque<E> extends AbstractCollection<E> implements Deque<E
         return size;
     }
 
-    @NonNull
     @Override
     public Iterator<E> iterator() {
         return new Iterator<E>() {
@@ -296,7 +293,6 @@ public class LinkedHashDeque<E> extends AbstractCollection<E> implements Deque<E
         };
     }
 
-    @NonNull
     @Override
     public Iterator<E> descendingIterator() {
         return new Iterator<E>() {

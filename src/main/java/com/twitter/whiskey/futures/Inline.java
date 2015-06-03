@@ -6,8 +6,6 @@
 
 package com.twitter.whiskey.futures;
 
-import android.support.annotation.NonNull;
-
 import java.util.concurrent.Executor;
 
 /**
@@ -19,7 +17,7 @@ public enum Inline implements Executor {
     INSTANCE;
 
     @Override
-    public void execute(@NonNull Runnable command) {
+    public void execute(Runnable command) {
         command.run();
     }
 

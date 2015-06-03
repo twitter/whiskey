@@ -6,8 +6,6 @@
 
 package com.twitter.whiskey.net;
 
-import android.support.annotation.Nullable;
-
 /**
  * HTTP-compatible protocol.
  *
@@ -30,7 +28,6 @@ public enum Protocol {
 
     @Override public String toString() { return name; }
 
-    @Nullable
     public static Protocol fromString(String name) {
         Protocol protocol;
         try {

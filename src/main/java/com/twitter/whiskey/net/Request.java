@@ -6,8 +6,6 @@
 
 package com.twitter.whiskey.net;
 
-import android.support.annotation.Nullable;
-
 import java.io.InputStream;
 import java.net.CookieHandler;
 import java.net.MalformedURLException;
@@ -138,7 +136,6 @@ public class Request {
             return method;
         }
 
-        @Nullable
         public static Method fromString(String name) {
             Method method;
             try {
