@@ -26,6 +26,10 @@ import java.util.zip.DataFormatException;
  */
 class SpdyStream {
 
+    static final String SPDY_SCHEME = ":scheme";
+    static final String SPDY_HOST = ":host";
+    static final String SPDY_PATH = ":path";
+
     private static final Set<String> INVALID_HEADERS;
     static {
         INVALID_HEADERS = new HashSet<String>() {{
@@ -64,6 +68,9 @@ class SpdyStream {
         closedRemotely = false;
     }
 
+    /**
+     * Factory constructor for various internal Stream types.
+     */
     static SpdyStream newStream(RequestOperation operation) {
         if (operation.getCurrentRequest().getBodyData() != null) {
             return new SpdyStream.Buffered(operation);
@@ -74,6 +81,9 @@ class SpdyStream {
         }
     }
 
+    /**
+     * Constructor for streams handling a {@link Request} with no body.
+     */
     SpdyStream(RequestOperation operation) {
         this(true, (byte) Math.min(7, (int) ((1d - operation.getCurrentRequest().getPriority()) * 8)));
         this.operation = operation;
@@ -90,6 +100,14 @@ class SpdyStream {
 
     RequestOperation getOperation() {
         return operation;
+    }
+
+    void setOperation(RequestOperation operation) {
+        this.operation = operation;
+    }
+
+    Request getRequest() {
+        return request;
     }
 
     int getStreamId() {
@@ -471,6 +489,57 @@ class SpdyStream {
                 }
             }
             return super.retry();
+        }
+    }
+
+    static class Pushed extends SpdyStream {
+
+        private Request.Builder pushBuilder = new Request.Builder();
+        private RequestOperation parentOperation;
+        private String scheme, host, path;
+
+        Pushed(SpdyStream parent, byte priority) {
+            super(false, priority);
+            parentOperation = parent.getOperation();
+            pushBuilder = new Request.Builder();
+            pushBuilder.addHeaders(parent.getRequest().getHeaders());
+        }
+
+        @Override
+        void onHeader(Header header) throws IOException {
+
+            switch(header.getKey()) {
+                case SPDY_SCHEME:
+                    scheme = header.getValue();
+                    break;
+                case SPDY_HOST:
+                    host = header.getValue();
+                    break;
+                case SPDY_PATH:
+                    path = header.getValue();
+                    break;
+                default:
+                    assert(getOperation() != null);
+                    super.onHeader(header);
+                    return;
+            }
+
+            if (scheme != null && host != null && path != null) {
+                pushBuilder.url(new URL(scheme, host, path));
+                final Request request = pushBuilder.create();
+                final RequestOperation pushOperation =
+                    new RequestOperation(parentOperation.getClient(), request);
+                setOperation(pushOperation);
+                parentOperation.getPushFuture().provide(pushOperation);
+            }
+        }
+
+        @Override
+        void onStatus(int statusCode) throws IOException {
+            if (statusCode == 301 || statusCode == 302 || statusCode == 303 || statusCode == 307) {
+                throw new SpdyStreamException("pushed resources cannot be redirects");
+            }
+            super.onStatus(statusCode);
         }
     }
 }

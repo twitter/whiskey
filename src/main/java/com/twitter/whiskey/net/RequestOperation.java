@@ -119,6 +119,10 @@ class RequestOperation extends CompletableFuture<Response> implements ResponseFu
         return remainingRetries;
     }
 
+    WhiskeyClient getClient() {
+        return client;
+    }
+
     @Override
     public Request getOriginalRequest() {
         return originalRequest;
