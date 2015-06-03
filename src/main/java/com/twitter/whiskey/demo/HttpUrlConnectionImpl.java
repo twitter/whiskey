@@ -59,7 +59,7 @@ public class HttpUrlConnectionImpl extends HttpURLConnection {
     /**
      * Constructor for the HttpURLConnection.
      *
-     * @param url the URL
+     * @param url the URL                                                                             c
      */
     public HttpUrlConnectionImpl(URL url, WhiskeyClient client) {
         super(url);
@@ -176,16 +176,14 @@ public class HttpUrlConnectionImpl extends HttpURLConnection {
 
     @Override
     public void connect() throws IOException {
-
-        getResponseFuture();
-        connected = true;
+        // No op
     }
 
     public ResponseFuture getResponseFuture() {
-
         if (submitted.compareAndSet(false, true)) {
             request = requestBuilder.create();
             responseFuture = client.submit(request);
+            connected = true;
         }
         return responseFuture;
     }
