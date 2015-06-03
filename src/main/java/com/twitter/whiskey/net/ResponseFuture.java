@@ -7,6 +7,9 @@
 package com.twitter.whiskey.net;
 
 import com.twitter.whiskey.futures.ListenableFuture;
+import com.twitter.whiskey.futures.Observer;
+
+import java.util.Iterator;
 
 /**
  * {@link ListenableFuture} wrapping an HTTP response. Also provides access to
@@ -33,6 +36,35 @@ public interface ResponseFuture extends ListenableFuture<Response> {
     public Request getCurrentRequest();
 
     /**
+     * Add an observer for ResponseFutures representing pushed server content.
+     * (See the SPDY draft spec or RFC 7540 for details on pushed content.)
+     * {@link Observer#onNext)} is called with a new ResponseFuture as early
+     * as feasible, to allow the client to potentially cancel the push or
+     * stream the content.
+     *
+     * Note that only the first observer added via this method OR the first
+     * iterator returned by {@link #pushIterator} is guaranteed to cover all
+     * pushed content for a given request.
+     */
+    public void addPushObserver(Observer<ResponseFuture> observer);
+
+    /**
+     * Returns a blocking iterator of ResponseFutures representing pushed
+     * server content. (See the SPDY draft spec or RFC 7540 for details on
+     * pushed content.)
+     *
+     * Note that although calls to {@link Iterator#hasNext}
+     * may block, the ResponseFutures returned by {@link Iterator#next}
+     * still likely represent in-flight content thay may be cancelled or
+     * streamed.
+     *
+     * Note that only the first iterator returned by this method OR the first
+     * observer added via {@link #addPushObserver} is guaranteed to cover all
+     * pushed content for a given request.
+     */
+    public Iterator<ResponseFuture> pushIterator();
+
+    /**
      * @return a future representation of the final response's headers
      */
     public HeadersFuture getHeadersFuture();
@@ -41,8 +73,6 @@ public interface ResponseFuture extends ListenableFuture<Response> {
      * @return a future representation of the final response's body
      */
     public BodyFuture getBodyFuture();
-
-//    public PushFuture getPushFuture();
 
     /**
      * @return a future representation of metrics on the operation's performance

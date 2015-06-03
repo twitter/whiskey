@@ -7,8 +7,10 @@
 package com.twitter.whiskey.net;
 
 import com.twitter.whiskey.futures.CompletableFuture;
+import com.twitter.whiskey.futures.Observer;
 import com.twitter.whiskey.util.PlatformAdapter;
 
+import java.util.Iterator;
 import java.util.concurrent.ExecutionException;
 
 /**
@@ -27,6 +29,7 @@ class RequestOperation extends CompletableFuture<Response> implements ResponseFu
     private final HeadersFutureImpl headersFuture;
     private final BodyFutureImpl bodyFuture;
     private final StatsFutureImpl statsFuture;
+    private final PushFuture pushFuture;
     private final long startMs;
 
     private Request currentRequest;
@@ -47,6 +50,7 @@ class RequestOperation extends CompletableFuture<Response> implements ResponseFu
         headersFuture = new HeadersFutureImpl();
         bodyFuture = new BodyFutureImpl();
         statsFuture = new StatsFutureImpl();
+        pushFuture = new PushFuture();
     }
 
     void redirect(Request request) {
@@ -138,5 +142,19 @@ class RequestOperation extends CompletableFuture<Response> implements ResponseFu
     @Override
     public StatsFutureImpl getStatsFuture() {
         return statsFuture;
+    }
+
+    PushFuture getPushFuture() {
+        return pushFuture;
+    }
+
+    @Override
+    public void addPushObserver(Observer<ResponseFuture> observer) {
+        pushFuture.addObserver(observer);
+    }
+
+    @Override
+    public Iterator<ResponseFuture> pushIterator() {
+        return pushFuture.iterator();
     }
 }
