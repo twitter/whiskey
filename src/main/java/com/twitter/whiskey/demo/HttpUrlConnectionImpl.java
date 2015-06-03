@@ -205,6 +205,36 @@ public class HttpUrlConnectionImpl extends HttpURLConnection {
         }
     }
 
+    @Override
+    public String getContentEncoding() {
+        try {
+            return getResponseFuture().getHeadersFuture().get()
+                .getFirst(Headers.CONTENT_ENCODING);
+        } catch (InterruptedException | ExecutionException | NumberFormatException e) {
+            return null;
+        }
+    }
+
+    @Override
+    public int getContentLength() {
+        try {
+            return Integer.parseInt(getResponseFuture().getHeadersFuture().get()
+                .getFirst(Headers.CONTENT_LENGTH));
+        } catch (InterruptedException | ExecutionException | NumberFormatException e) {
+            return -1;
+        }
+    }
+
+    @Override
+    public String getContentType() {
+        try {
+            return getResponseFuture().getHeadersFuture().get()
+                .getFirst(Headers.CONTENT_TYPE);
+        } catch (InterruptedException | ExecutionException | NumberFormatException e) {
+            return null;
+        }
+    }
+
     public Header getHeader(int n) {
 
         try {

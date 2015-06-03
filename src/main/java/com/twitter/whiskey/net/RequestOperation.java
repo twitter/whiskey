@@ -59,6 +59,7 @@ class RequestOperation extends CompletableFuture<Response> implements ResponseFu
         remainingRedirects--;
         assert remainingRedirects >= 0 && !headersFuture.isDone()
             && !bodyFuture.isDone() && !statsFuture.isDone();
+        headersFuture.reset();
         client.queue(this);
     }
 
