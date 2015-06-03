@@ -275,7 +275,7 @@ class SpdyStream {
                     int approximateLength = estimateContentLength(expectedContentLength);
                     operation.getBodyFuture().setExpectedLength(approximateLength);
                 }
-                break;
+                return;
 
             case Headers.CONTENT_LENGTH:
                 expectedContentLength = header.getIntegerValue();
