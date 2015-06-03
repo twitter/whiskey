@@ -208,7 +208,14 @@ class SpdyStream {
     Headers getCanonicalHeaders() {
 
         Headers canonical = new Headers(request.getHeaders());
-        canonical.put(":path", request.getUrl().getPath());
+        URL url = request.getUrl();
+        String path = url.getPath();
+        String query = url.getQuery();
+        String fragment = url.getRef();
+        String fullPath = path
+            + (query != null ? "?" + query : "")
+            + (fragment != null ? "#" + fragment : "");
+        canonical.put(":path", fullPath);
         canonical.put(":method", request.getMethod().toString());
         canonical.put(":version", "HTTP/1.1");
         canonical.put(":host", request.getUrl().getHost());
