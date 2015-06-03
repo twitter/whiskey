@@ -11,6 +11,11 @@ import java.util.concurrent.Executor;
 /**
  * Simple executor for continued single-threaded execution.
  *
+ * WARNING: Do not use this executor to register listeners or observers on
+ * Whiskey's public network APIs! This is unsupported behavior, will result
+ * in application code being run on the network thread, and may be explicitly
+ * prevented by guards in the future.
+ *
  * @author Michael Schore
  */
 public enum Inline implements Executor {
