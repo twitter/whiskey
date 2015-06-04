@@ -8,6 +8,7 @@ package com.twitter.whiskey.net;
 
 import com.twitter.whiskey.futures.CompletableFuture;
 import com.twitter.whiskey.futures.Listener;
+import com.twitter.whiskey.nio.RunLoop;
 import com.twitter.whiskey.nio.Socket;
 import com.twitter.whiskey.futures.Inline;
 import com.twitter.whiskey.util.Origin;
@@ -19,6 +20,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.Executor;
 import java.util.zip.DataFormatException;
 
 import static com.twitter.whiskey.net.SpdyConstants.*;
@@ -153,13 +155,21 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
         activeStreams.add(stream);
 
         // TODO: implement via interrupts to avoid unnecessary calls
-        operation.addListener(new Inline.Listener<Response>() {
+        operation.addListener(new Listener<Response>() {
+            @Override
+            public void onComplete(Response result) {}
+
             @Override
             public void onError(Throwable throwable) {
                 if (activeStreams.contains(stream)) {
                     activeStreams.remove(stream);
                     sendRstStream(streamId, SPDY_STREAM_CANCEL);
                 }
+            }
+
+            @Override
+            public Executor getExecutor() {
+                return RunLoop.instance();
             }
         });
         boolean hasBody = stream.hasPendingData();

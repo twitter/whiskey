@@ -6,6 +6,7 @@
 
 package com.twitter.whiskey.net;
 
+import com.twitter.whiskey.futures.Listener;
 import com.twitter.whiskey.nio.RunLoop;
 import com.twitter.whiskey.nio.Socket;
 import com.twitter.whiskey.nio.SSLSocket;
@@ -17,6 +18,8 @@ import com.twitter.whiskey.util.UniqueMultiMap;
 import java.net.ConnectException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Deque;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
@@ -81,12 +84,20 @@ class SessionManager {
 
         // If no active sessions are available, queue the operation locally.
         // Listen for cancellation/timeout.
-        operation.addListener(new Inline.Listener<Response>() {
+        operation.addListener(new Listener<Response>() {
+            @Override
+            public void onComplete(Response result) {}
+
             @Override
             public void onError(Throwable throwable) {
                 if (pendingOperations.contains(operation)) {
                     pendingOperations.remove(operation);
                 }
+            }
+
+            @Override
+            public Executor getExecutor() {
+                return RunLoop.instance();
             }
         });
 
