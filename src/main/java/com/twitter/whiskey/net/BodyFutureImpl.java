@@ -55,15 +55,16 @@ class BodyFutureImpl extends ReactiveFuture<ByteBuffer, ByteBuffer> implements B
 
     @Override
     public Iterable<ByteBuffer> drain() {
-
         List<ByteBuffer> chunks = new ArrayList<>(boundaries.size());
-        body.flip();
-        for (int limit : boundaries) {
-            body.limit(limit);
-            chunks.add(body.slice().asReadOnlyBuffer());
-            body.position(limit);
+        if (body != null) {
+            body.flip();
+            for (int limit : boundaries) {
+                body.limit(limit);
+                chunks.add(body.slice().asReadOnlyBuffer());
+                body.position(limit);
+            }
+            body = null;
         }
-        body = null;
         return chunks;
     }
 

@@ -238,7 +238,8 @@ class SpdyStream {
     void onHeader(Header header) throws IOException {
 
         if (INVALID_HEADERS.contains(header.getKey())) {
-            throw new SpdyProtocolException("invalid header for SPDY response: " + header.getKey());
+            //throw new SpdyProtocolException("invalid header for SPDY response: " + header.getKey());
+            return;
         }
 
         switch(header.getKey()) {
