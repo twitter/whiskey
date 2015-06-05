@@ -18,7 +18,6 @@ import com.twitter.whiskey.util.UniqueMultiMap;
 import java.net.ConnectException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Deque;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 
 import javax.net.ssl.SSLContext;
@@ -38,7 +37,7 @@ class SessionManager {
     private final SSLContext sslContext;
     private final UniqueMultiMap<Integer, Socket> pendingSocketMap = new UniqueMultiMap<>();
     private final UniqueMultiMap<Integer, Session> openSessionMap = new UniqueMultiMap<>();
-    private final int parallelism;
+    private final int maxConnectionsToOrigin;
     private final boolean secure;
 
     private static final int OFFLINE = -1;
@@ -52,7 +51,7 @@ class SessionManager {
 
         this.configuration = configuration;
         this.origin = origin;
-        this.parallelism = configuration.getMaxTcpConnections();
+        this.maxConnectionsToOrigin = configuration.getMaxTcpConnections();
         secure = origin.getScheme().equals("https");
         sslContext = secure ? configuration.getSslContext() : null;
     }
@@ -103,9 +102,11 @@ class SessionManager {
 
         pendingOperations.add(operation);
 
-        // If parallelism allows, open new socket connection(s).
+        // Open new socket connection(s) as necessary.
         openSessionCount = openSessionMap.get(currentConnectivity).size();
-        for (int i = 0; i < parallelism - openSessionCount; i++) {
+        final int pendingSocketCount = pendingSocketMap.get(currentConnectivity).size();
+        final int availableCount = maxConnectionsToOrigin - pendingSocketCount - openSessionCount;
+        for (int i = 0; i < availableCount; i++) {
             createSocket(currentConnectivity);
         }
     }
