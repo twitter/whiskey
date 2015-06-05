@@ -218,8 +218,8 @@ class SpdyStream {
         canonical.put(":path", fullPath);
         canonical.put(":method", request.getMethod().toString());
         canonical.put(":version", "HTTP/1.1");
-        canonical.put(":host", request.getUrl().getHost());
-        canonical.put(":scheme", "http");
+        canonical.put(":host", url.getHost());
+        canonical.put(":scheme", url.getProtocol());
         return canonical;
     }
 
