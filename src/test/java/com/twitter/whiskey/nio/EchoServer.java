@@ -6,6 +6,8 @@
 
 package com.twitter.whiskey.nio;
 
+import com.twitter.whiskey.util.Platform;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -87,7 +89,7 @@ class EchoServer {
 
                 });
             } catch (IOException | RejectedExecutionException ioe) {
-                System.err.println("IOE: " + ioe);
+                Platform.LOGGER.debug("IOE: " + ioe);
             }
         }
     }

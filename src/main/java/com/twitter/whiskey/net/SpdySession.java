@@ -12,7 +12,7 @@ import com.twitter.whiskey.nio.RunLoop;
 import com.twitter.whiskey.nio.Socket;
 import com.twitter.whiskey.futures.Inline;
 import com.twitter.whiskey.util.Origin;
-import com.twitter.whiskey.util.PlatformAdapter;
+import com.twitter.whiskey.util.Platform;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -211,7 +211,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
      * a RST_STREAM frame with the status PROTOCOL_ERROR.
      */
 
-        System.err.println(
+        Platform.LOGGER.debug(
             "read DATA\n--> Stream-ID = " + streamId + "\n--> Size = " + data.remaining() +
                 "\n--> Last: " + last
         );
@@ -339,7 +339,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
      * it must issue a stream error with the status code STREAM_IN_USE.
      */
 
-        System.err.println("read SYN_REPLY\n--> Stream-ID = " + streamId + "\n--> Last = " + last);
+        Platform.LOGGER.debug("read SYN_REPLY\n--> Stream-ID = " + streamId + "\n--> Last = " + last);
         SpdyStream stream = activeStreams.get(streamId);
 
         // Check if this is a reply for an active stream
@@ -397,7 +397,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
      * "origin" is the set of scheme, host, and port from the URI).
      */
 
-        System.err.println("read SETTINGS\n");
+        Platform.LOGGER.debug("read SETTINGS\n");
         if (clearPersisted) {
             storedSettings.remove(origin);
         }
@@ -462,7 +462,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
      * Receivers of a PING frame must ignore frames that it did not initiate
      */
 
-        System.err.println("read PING\n--> Ping-ID = " + id);
+        Platform.LOGGER.debug("read PING\n--> Ping-ID = " + id);
 
         if (id % 2 == 0) {
             sendPingResponse(id);
@@ -551,7 +551,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
     @Override
     public void readHeader(int streamId, Header header) {
 
-        System.err.println("    " + header);
+        Platform.LOGGER.debug("    " + header);
         SpdyStream stream = activeStreams.get(streamId);
         assert(stream != null); // Should have been caught when frame was decoded
 
@@ -567,7 +567,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
     @Override
     public void readHeadersEnd(int streamId) {
 
-        System.err.println("end headers");
+        Platform.LOGGER.debug("end headers");
         SpdyStream stream = activeStreams.get(streamId);
         assert(stream != null); // Should have been caught when frame was decoded
 
@@ -679,7 +679,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
         pingFuture.addListener(new Inline.Listener<Long>() {
             @Override
             public void onComplete(Long result) {
-                sentPingMap.put(pingId, PlatformAdapter.instance().timestamp());
+                sentPingMap.put(pingId, Platform.instance().timestamp());
             }
         });
 
@@ -735,7 +735,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
 
         @Override
         public void onComplete(Long result) {
-            System.err.println(String.format(message, result));
+            Platform.LOGGER.debug(String.format(message, result));
         }
     }
 

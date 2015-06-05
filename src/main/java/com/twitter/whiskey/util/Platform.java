@@ -14,29 +14,39 @@ import java.lang.reflect.Method;
 /**
  * @author Bill Gallagher
  */
-public abstract class PlatformAdapter {
+public abstract class Platform {
 
-    private static final PlatformAdapter INSTANCE = establishPlatform();
+    private static final Platform INSTANCE = establishPlatform();
 
-    public static PlatformAdapter instance() {
+    public static final Clock CLOCK = new DefaultClock();
+    public static final Logger LOGGER = new Logger() {
+        @Override public void fatal(String s) {}
+        @Override public void error(String s) {}
+        @Override public void warn(String s) {}
+        @Override public void info(String s) {}
+        @Override public void debug(String s) {}
+        @Override public void trace(String s) {}
+    };
+
+    public static Platform instance() {
         return INSTANCE;
     }
 
     abstract public long timestamp();
 
-    private static PlatformAdapter establishPlatform() {
+    private static Platform establishPlatform() {
 
         try {
             Class.forName("android.app.Application");
-            return new AndroidAdapter();
+            return new Android();
         } catch (ClassNotFoundException e) {
-            return new JDKPlatformAdapter();
+            return new JDKPlatform();
         }
     }
 
-    private static class JDKPlatformAdapter extends PlatformAdapter {
+    private static class JDKPlatform extends Platform {
 
-        JDKPlatformAdapter() {
+        JDKPlatform() {
         }
 
         @Override
@@ -45,11 +55,11 @@ public abstract class PlatformAdapter {
         }
     }
 
-    private static class AndroidAdapter extends PlatformAdapter {
+    private static class Android extends Platform {
 
         private Method now;
 
-        AndroidAdapter() {
+        Android() {
 
             try {
                 now = Class.forName("android.os.SystemClock").getDeclaredMethod("elapsedRealtime");

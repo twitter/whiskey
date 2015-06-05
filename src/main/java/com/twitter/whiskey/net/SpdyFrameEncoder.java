@@ -9,6 +9,8 @@
 
 package com.twitter.whiskey.net;
 
+import com.twitter.whiskey.util.Platform;
+
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Set;
@@ -65,7 +67,7 @@ class SpdyFrameEncoder {
             headerBlock = headerBlockEncoder.encode(headers);
         } catch (Exception e) {
             headerBlock = ByteBuffer.allocate(0);
-            System.err.println(e.toString());
+            Platform.LOGGER.debug(e.toString());
         }
         int headerBlockLength = headerBlock.limit();
         byte flags = last ? SPDY_FLAG_FIN : 0;
@@ -88,7 +90,7 @@ class SpdyFrameEncoder {
             headerBlock = headerBlockEncoder.encode(headers);
         } catch (Exception e) {
             headerBlock = ByteBuffer.allocate(0);
-            System.err.println(e.toString());
+            Platform.LOGGER.debug(e.toString());
         }
         int headerBlockLength = headerBlock.limit();
         byte flags = last ? SPDY_FLAG_FIN : 0;
@@ -164,7 +166,7 @@ class SpdyFrameEncoder {
             headerBlock = headerBlockEncoder.encode(headers);
         } catch (Exception e) {
             headerBlock = ByteBuffer.allocate(0);
-            System.err.println(e.toString());
+            Platform.LOGGER.debug(e.toString());
         }
         int headerBlockLength = headerBlock.limit();
         byte flags = last ? SPDY_FLAG_FIN : 0;

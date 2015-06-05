@@ -8,7 +8,7 @@ package com.twitter.whiskey.net;
 
 import com.twitter.whiskey.futures.CompletableFuture;
 import com.twitter.whiskey.futures.Observer;
-import com.twitter.whiskey.util.PlatformAdapter;
+import com.twitter.whiskey.util.Platform;
 
 import java.util.Iterator;
 import java.util.concurrent.ExecutionException;
@@ -38,7 +38,7 @@ class RequestOperation extends CompletableFuture<Response> implements ResponseFu
 
     RequestOperation(WhiskeyClient client, Request request) {
 
-        startMs = PlatformAdapter.instance().timestamp();
+        startMs = Platform.instance().timestamp();
 
         this.client = client;
         originalRequest = request;
@@ -109,7 +109,7 @@ class RequestOperation extends CompletableFuture<Response> implements ResponseFu
     }
 
     void finalizeStats() {
-        stats.durationMs = PlatformAdapter.instance().timestamp() - startMs;
+        stats.durationMs = Platform.instance().timestamp() - startMs;
     }
 
     int getRemainingRedirects() {

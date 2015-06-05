@@ -7,6 +7,7 @@
 package com.twitter.whiskey.net;
 
 import com.twitter.whiskey.futures.ReactiveFuture;
+import com.twitter.whiskey.util.Platform;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -34,7 +35,7 @@ class BodyFutureImpl extends ReactiveFuture<ByteBuffer, ByteBuffer> implements B
         if (!element.hasRemaining()) return;
         if (body == null) {
             body = ByteBuffer.allocate(Math.max(expectedLength, element.remaining()));
-            System.err.println("allocated " + body.capacity());
+            Platform.LOGGER.debug("allocated " + body.capacity());
         }
 
         if (body.remaining() < element.remaining()) {
@@ -46,7 +47,7 @@ class BodyFutureImpl extends ReactiveFuture<ByteBuffer, ByteBuffer> implements B
             expanded.put(body);
             expanded.put(element);
             body = expanded;
-            System.err.println("grew buffer to " + body.capacity());
+            Platform.LOGGER.debug("grew buffer to " + body.capacity());
         } else {
             body.put(element);
         }
