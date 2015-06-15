@@ -298,13 +298,13 @@ public class HttpUrlConnectionImpl extends HttpURLConnection {
             public int read() throws IOException {
                 try {
                     if (currentBuffer != null && currentBuffer.remaining() > 0) {
-                        return currentBuffer.get();
+                        return currentBuffer.get() & 0xff;
                     }
 
                     while (iterator.hasNext()) {
                         currentBuffer = iterator.next();
                         if (currentBuffer != null && currentBuffer.remaining() > 0) {
-                            return currentBuffer.get();
+                            return currentBuffer.get() & 0xff;
                         }
                     }
 
