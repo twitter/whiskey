@@ -210,7 +210,7 @@ class SpdyStream {
         Headers canonical = new Headers(request.getHeaders());
         URL url = request.getUrl();
         String path = url.getPath();
-        // Tough RFC-3986 allows path to be empty, most user agents will send
+        // Though RFC-3986 allows path to be empty, most user agents will send
         // a trailing slash in lieu of an empty path, and Twitter seems to
         // require it.
         if (path.length() == 0) path = "/";
