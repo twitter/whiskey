@@ -210,6 +210,10 @@ class SpdyStream {
         Headers canonical = new Headers(request.getHeaders());
         URL url = request.getUrl();
         String path = url.getPath();
+        // Though RFC-3986 allows path to be empty, most user agents will send
+        // a trailing slash in lieu of an empty path, and Twitter seems to
+        // require it.
+        if (path.length() == 0) path = "/";
         String query = url.getQuery();
         String fragment = url.getRef();
         String fullPath = path
@@ -252,7 +256,12 @@ class SpdyStream {
                     throw new IOException("invalid HTTP response: " + header.getValue());
                 }
                 onStatus(status);
-                break;
+                // Don't include SPDY protocol headers in response headers
+                return;
+
+            case ":version":
+                // Don't include SPDY protocol headers in response headers
+                return;
 
             case Headers.LOCATION:
                 try {
