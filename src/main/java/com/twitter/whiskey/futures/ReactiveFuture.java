@@ -233,7 +233,7 @@ public abstract class ReactiveFuture<T, E> extends CompletableFuture<T> implemen
         @Override
         public E next() {
 
-            if (drained.hasNext()) return drained.next();
+            if (drained != null && drained.hasNext()) return drained.next();
 
             if (currentElement != null && currentElement != SENTINEL) {
                 E element = (E) currentElement;
