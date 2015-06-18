@@ -232,6 +232,9 @@ public class RunLoop implements Executor {
 
     // TODO: allow cancellation of scheduled tasks
     private class RunLoopThread extends Thread {
+        public RunLoopThread() {
+            setDaemon(true);
+        }
 
         @Override
         public void run() {
