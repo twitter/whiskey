@@ -406,6 +406,7 @@ class SpdyStream {
         finalResponse = true;
         operation.getHeadersFuture().release();
         operation.getBodyFuture().release();
+        operation.getPushFuture().release();
     }
 
     private static class Buffered extends SpdyStream {
