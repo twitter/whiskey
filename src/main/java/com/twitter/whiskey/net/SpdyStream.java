@@ -29,6 +29,7 @@ class SpdyStream {
     static final String SPDY_SCHEME = ":scheme";
     static final String SPDY_HOST = ":host";
     static final String SPDY_PATH = ":path";
+    static final String SPDY_METHOD = ":method";
 
     private static final Set<String> INVALID_HEADERS;
     static {
@@ -513,7 +514,7 @@ class SpdyStream {
 
         private Request.Builder pushBuilder = new Request.Builder();
         private RequestOperation parentOperation;
-        private String scheme, host, path;
+        private String scheme, host, path, method;
 
         Pushed(SpdyStream parent, byte priority) {
             super(false, priority);
@@ -534,6 +535,9 @@ class SpdyStream {
                     break;
                 case SPDY_PATH:
                     path = header.getValue();
+                    break;
+                case SPDY_METHOD:
+                    method = header.getValue();
                     break;
                 default:
                     assert(getOperation() != null);
