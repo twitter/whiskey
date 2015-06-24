@@ -100,6 +100,7 @@ class RequestOperation extends CompletableFuture<Response> implements ResponseFu
         finalizeStats();
         headersFuture.complete();
         bodyFuture.complete();
+        pushFuture.complete();
         statsFuture.set(stats);
         try {
             set(new Response(statusCode, headersFuture.get(), bodyFuture.get(), stats));
