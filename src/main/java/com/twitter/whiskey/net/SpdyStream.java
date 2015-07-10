@@ -140,10 +140,12 @@ class SpdyStream {
     }
 
     void closeLocally() {
+        if (inflater != null) inflater.end();
         closedLocally = true;
     }
 
     void closeRemotely() {
+        if (inflater != null) inflater.end();
         closedRemotely = true;
     }
 
@@ -154,7 +156,14 @@ class SpdyStream {
     void close(Throwable e) {
         closedLocally = true;
         closedRemotely = true;
+        if (inflater != null) inflater.end();
         operation.fail(e);
+    }
+
+    @Override
+    protected void finalize() throws Throwable {
+        if (inflater != null) inflater.end();
+        super.finalize();
     }
 
     void complete() {
@@ -162,11 +171,12 @@ class SpdyStream {
             redirect();
             return;
         }
-
+				
         if (!finalResponse) {
             finalizeResponse();
         }
 
+        if (inflater != null) inflater.end();
         operation.complete(statusCode);
     }
 

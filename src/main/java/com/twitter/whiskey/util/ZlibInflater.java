@@ -171,13 +171,14 @@ public class ZlibInflater extends Inflater {
 
     @Override
     public void end() {
-        inflater.end();
+        if (inflater != null) inflater.end();
+        super.end();
     }
 
     @Override
     protected void finalize() {
+        this.end();
         super.finalize();
-        if (inflater != null) inflater.end();
     }
 
     @Override
