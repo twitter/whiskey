@@ -110,6 +110,8 @@ public class ZlibInflater extends Inflater {
             case UNKNOWN:
                 // Postpone the decision until setInput(...) is called.
                 determineWrapper = true;
+                accumulator = ByteBuffer.allocate(10);
+                accumulator.flip();
                 crc = null;
                 break;
             default:
