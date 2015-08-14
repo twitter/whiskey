@@ -19,7 +19,7 @@ public class Response {
     private ByteBuffer body;
     private RequestStats stats;
 
-    Response(int statusCode, Headers headers, ByteBuffer body, RequestStats stats) {
+    public Response(int statusCode, Headers headers, ByteBuffer body, RequestStats stats) {
         this.statusCode = statusCode;
         this.headers = headers;
         this.body = body;
