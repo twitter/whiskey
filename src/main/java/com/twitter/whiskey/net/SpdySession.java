@@ -603,6 +603,11 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
             "sent SYN_STREAM (%d)\n--> Stream-ID = " + streamId + "\n--> Priority = " + priority +
             "\n--> Last = " + last
         );
+
+        for (Header header: headers.entries()) {
+            Platform.LOGGER.debug("    " + header);
+        }
+
         socket.write(frameEncoder.encodeSynStreamFrame(streamId, 0, priority, last, false, headers))
             .addListener(logger);
     }
