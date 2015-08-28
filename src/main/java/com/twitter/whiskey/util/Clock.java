@@ -17,7 +17,7 @@ package com.twitter.whiskey.util;
 public interface Clock {
 
     /**
-     * Returns a timestamp in milliseconds that's guaranteed to be monotically
+     * Returns a timestamp in milliseconds that's guaranteed to be monotonically
      * increasing. No correlation to "real world" calendar date or time is
      * guaranteed or implied.
      *
@@ -26,7 +26,7 @@ public interface Clock {
     public long now();
 
     /**
-     * Returns a timestamp in nanoseconds that's guaranteed to be monotically
+     * Returns a timestamp in nanoseconds that's guaranteed to be monotonically
      * increasing. No correlation to "real world" calendar date or time is
      * guaranteed or implied.
      *
