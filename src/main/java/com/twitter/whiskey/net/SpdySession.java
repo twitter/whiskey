@@ -599,14 +599,15 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
         assert(!stream.isClosedLocally());
         if (last) stream.closeLocally();
 
+        StringBuilder headerString = new StringBuilder(headers.size() * 30);
+        for (Header header: headers.entries()) {
+            headerString.append("\n    " + header);
+        }
+
         WriteLogger logger = new WriteLogger(
             "sent SYN_STREAM (%d)\n--> Stream-ID = " + streamId + "\n--> Priority = " + priority +
-            "\n--> Last = " + last
+            "\n--> Last = " + last + headerString.toString().replaceAll("%", "%%")
         );
-
-        for (Header header: headers.entries()) {
-            Platform.LOGGER.debug("    " + header);
-        }
 
         socket.write(frameEncoder.encodeSynStreamFrame(streamId, 0, priority, last, false, headers))
             .addListener(logger);
