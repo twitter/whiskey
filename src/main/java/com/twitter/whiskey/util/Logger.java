@@ -16,4 +16,5 @@ public interface Logger {
     public void info(String s);
     public void debug(String s);
     public void trace(String s);
+    public void exception(String s, Throwable t);
 }
