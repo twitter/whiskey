@@ -497,6 +497,8 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
 
         if (stream == null || stream.isClosedRemotely()) {
             sendRstStream(streamId, SPDY_STREAM_INVALID_STREAM);
+        } else if (last) {
+            stream.closeRemotely();
         }
     }
 
