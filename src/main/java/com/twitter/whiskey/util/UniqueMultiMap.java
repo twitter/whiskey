@@ -40,6 +40,7 @@ public class UniqueMultiMap<K, V> extends DequeMultiMap<K, V> {
 
         if (inverse.containsKey(value)) removeValue(value);
         super.put(key, value);
+        inverse.put(value, key);
     }
 
     @Override
@@ -69,6 +70,7 @@ public class UniqueMultiMap<K, V> extends DequeMultiMap<K, V> {
         Deque<V> values = map.get(key);
         if (!values.remove(value)) throw new IllegalStateException();
         size--;
+        if (values.isEmpty()) map.remove(key);
         if (sentinel != mutations++) throw new ConcurrentModificationException();
         return key;
     }

@@ -177,7 +177,7 @@ class SessionManager {
                 // Otherwise, if there are no more pending sockets assume we
                 // can't connect for now and fail operations.
                 if (SessionManager.this.connectivity == connectivity &&
-                    !pendingSocketMap.containsKey(connectivity) &&
+                    (!pendingSocketMap.containsKey(connectivity) || pendingSocketMap.get(connectivity).isEmpty()) &&
                     openSessionMap.isEmpty()) {
                     failOperations(throwable);
                 }
