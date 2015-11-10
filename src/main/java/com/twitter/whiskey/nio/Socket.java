@@ -17,6 +17,7 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
+import java.nio.channels.UnresolvedAddressException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -58,7 +59,7 @@ public class Socket extends Selectable {
                     channel.configureBlocking(false);
                     channel.connect(new InetSocketAddress(origin.getHost(), origin.getPort()));
                     reregister();
-                } catch (IOException e) {
+                } catch (IOException | UnresolvedAddressException e) {
                     connectFuture.fail(e);
                     closed = true;
                 }
