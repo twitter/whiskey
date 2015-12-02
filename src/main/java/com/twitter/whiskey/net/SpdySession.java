@@ -55,7 +55,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
     private int sessionSendWindow = DEFAULT_INITIAL_WINDOW_SIZE;
     private int sessionReceiveWindow;
     private int localMaxConcurrentStreams = 0;
-    private int remoteMaxConcurrentStreams = 100;
+    private int remoteMaxConcurrentStreams = DEFAULT_MAX_CONCURRENT_STREAMS;
     private long latency = -1;
     private boolean receivedGoAwayFrame = false;
     private boolean sentGoAwayFrame = false;
@@ -670,7 +670,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
     private void sendClientSettings() {
 
         SpdySettings settings = new SpdySettings();
-        settings.setValue(SpdySettings.MAX_CONCURRENT_STREAMS, 100);
+        settings.setValue(SpdySettings.MAX_CONCURRENT_STREAMS, localMaxConcurrentStreams);
         settings.setValue(SpdySettings.INITIAL_WINDOW_SIZE, initialReceiveWindow);
 
         WriteLogger logger = new WriteLogger("sent SETTINGS (%d)\n" + settings.toString());
