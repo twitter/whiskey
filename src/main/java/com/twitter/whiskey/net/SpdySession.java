@@ -54,7 +54,7 @@ class SpdySession implements Session, SpdyFrameDecoderDelegate {
     private int initialReceiveWindow;
     private int sessionSendWindow = DEFAULT_INITIAL_WINDOW_SIZE;
     private int sessionReceiveWindow;
-    private int localMaxConcurrentStreams = 0;
+    private int localMaxConcurrentStreams;
     private int remoteMaxConcurrentStreams = DEFAULT_MAX_CONCURRENT_STREAMS;
     private long latency = -1;
     private boolean receivedGoAwayFrame = false;
